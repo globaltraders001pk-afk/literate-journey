@@ -1,22 +1,55 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { login } from '@/app/actions/auth'
+import { getPublicBrand } from '@/app/actions/organization'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Store } from 'lucide-react'
 import Link from 'next/link'
 
 export default function LoginPage() {
   const [state, action, pending] = useActionState(login, undefined)
+  const [brand, setBrand] = useState<{ name: string; logo_url: string | null }>({
+    name: 'Qurbat ERP',
+    logo_url: null,
+  })
+
+  useEffect(() => {
+    getPublicBrand().then((b) => {
+      if (b) setBrand(b)
+    })
+  }, [])
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Login to Qurbat ERP</CardTitle>
-        <CardDescription>Enter your email below to login to your account</CardDescription>
-      </CardHeader>
+    <div className="space-y-6">
+      <div className="flex flex-col items-center justify-center gap-2.5 text-center">
+        {brand.logo_url ? (
+          <div className="h-14 w-14 rounded-2xl overflow-hidden border border-border/80 bg-background shadow-sm flex items-center justify-center p-1">
+            <img
+              src={brand.logo_url}
+              alt={brand.name}
+              className="h-full w-full object-contain"
+            />
+          </div>
+        ) : (
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shadow-xs">
+            <Store className="h-6 w-6" />
+          </div>
+        )}
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{brand.name}</h1>
+          <p className="text-xs text-muted-foreground">Business & Inventory Management System</p>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Login to your account</CardTitle>
+          <CardDescription>Enter your credentials below to access the management portal</CardDescription>
+        </CardHeader>
       <form action={action}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -36,5 +69,6 @@ export default function LoginPage() {
         </CardFooter>
       </form>
     </Card>
+    </div>
   )
 }

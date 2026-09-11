@@ -168,3 +168,40 @@ export async function processCheckout(
   revalidatePath('/inventory/movements')
   return { success: true, invoice_number }
 }
+
+export async function getInvoiceByNumber(invoiceNumber: string) {
+  try {
+    const supabase = await createClient()
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) return null
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', userData.user.id)
+      .single()
+
+    if (!profile) return null
+
+    const { data: sale, error } = await supabase
+      .from('sales')
+      .select(`
+        id, invoice_number, subtotal, total_amount, payment_method, created_at,
+        customer:customers(id, name, phone, email),
+        items:sale_items(
+          id, quantity, unit_price, subtotal,
+          product:products(id, name, sku)
+        )
+      `)
+      .eq('organization_id', profile.organization_id)
+      .eq('invoice_number', invoiceNumber)
+      .maybeSingle()
+
+    if (error || !sale) return null
+    return sale
+  } catch (err) {
+    console.error('Error fetching invoice by number:', err)
+    return null
+  }
+}
+

@@ -16,6 +16,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { processCheckout } from '@/app/actions/sales'
 import { Minus, Plus, ShoppingCart, Trash2, Printer, CheckCircle2, Store } from 'lucide-react'
+import { useOrganization } from '@/components/providers/organization-provider'
 
 type CartItem = {
   product_id: string
@@ -35,6 +36,7 @@ interface CompletedSale {
 }
 
 export function POSClient({ products, customers }: { products: any[], customers: any[] }) {
+  const { organization } = useOrganization()
   const [cart, setCart] = useState<CartItem[]>([])
   const [customerId, setCustomerId] = useState<string>('')
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH')
@@ -369,12 +371,28 @@ export function POSClient({ products, customers }: { products: any[], customers:
                 className="bg-card text-card-foreground p-5 rounded-lg border border-dashed border-border/80 text-xs space-y-3 font-sans shadow-xs"
               >
                 {/* Store Branding */}
-                <div className="receipt-header text-center space-y-1">
-                  <div className="flex items-center justify-center gap-1.5 font-semibold text-base text-primary">
-                    <Store className="h-4 w-4" />
-                    <span>Qurbat ERP</span>
+                <div className="receipt-header text-center space-y-1.5">
+                  <div className="flex items-center justify-center gap-2 font-bold text-base text-primary">
+                    {organization?.logo_url ? (
+                      <div className="h-7 w-7 rounded overflow-hidden flex items-center justify-center shrink-0">
+                        <img
+                          src={organization.logo_url}
+                          alt="Logo"
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <Store className="h-4 w-4" />
+                    )}
+                    <span>{organization?.name || 'Qurbat ERP'}</span>
                   </div>
                   <p className="receipt-subtitle text-[11px] text-muted-foreground">Sales Receipt / Tax Invoice</p>
+                  {organization?.address && (
+                    <p className="text-[10px] text-muted-foreground/80">{organization.address}</p>
+                  )}
+                  {organization?.phone && (
+                    <p className="text-[10px] text-muted-foreground/80">Tel: {organization.phone}</p>
+                  )}
                 </div>
 
                 <div className="divider border-t border-dashed border-border" />

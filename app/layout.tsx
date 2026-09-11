@@ -11,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Qurbat ERP - Restaurant & Inventory Management",
-  description: "Enterprise grade restaurant, inventory, and POS management platform",
+  title: "Qurbat ERP - Business & Inventory Management",
+  description: "Enterprise grade business, inventory, and POS management platform",
 };
 
 export default function RootLayout({

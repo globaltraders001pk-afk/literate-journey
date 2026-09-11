@@ -1,5 +1,6 @@
 'use client'
 
+import * as React from 'react'
 import {
   Sidebar,
   SidebarContent,
@@ -12,7 +13,7 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from '@/components/ui/sidebar'
-import { Home, Package, ShoppingCart, Users, Settings, LogOut, DollarSign, ArrowLeftRight, Undo2, Store, BarChart3, ListTodo } from 'lucide-react'
+import { Home, Package, ShoppingCart, Users, Settings, LogOut, DollarSign, ArrowLeftRight, Undo2, Store, BarChart3, ListTodo, Sparkles, Plus, Clock, MessageSquare, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/app/actions/auth'
@@ -20,22 +21,68 @@ import { UserRole } from '@/lib/auth-utils'
 import { ThemeToggleQuick } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { getChatSessions, deleteChatSession, ChatSession } from '@/lib/ai/chat-storage'
+import { cn } from '@/lib/utils'
+import { useOrganization } from '@/components/providers/organization-provider'
 
 export function AppSidebar({ role }: { role: UserRole }) {
+  const { organization } = useOrganization()
   const pathname = usePathname()
   const isEmployee = role === 'employee'
   const isManager = role === 'manager'
   const isAdmin = role === 'admin' || role === 'owner'
+
+  const [recentChats, setRecentChats] = React.useState<ChatSession[]>([])
+  const [currentSessionId, setCurrentSessionId] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (role !== 'owner') return
+
+    const updateFromStorage = () => {
+      setRecentChats(getChatSessions())
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search)
+        setCurrentSessionId(params.get('session'))
+      }
+    }
+
+    updateFromStorage()
+
+    window.addEventListener('qurbat-chats-changed', updateFromStorage)
+    window.addEventListener('popstate', updateFromStorage)
+    window.addEventListener('storage', updateFromStorage)
+
+    return () => {
+      window.removeEventListener('qurbat-chats-changed', updateFromStorage)
+      window.removeEventListener('popstate', updateFromStorage)
+      window.removeEventListener('storage', updateFromStorage)
+    }
+  }, [role, pathname])
 
   const isExact = (path: string) => pathname === path || pathname === `${path}/`
   const isPrefix = (prefix: string) => pathname.startsWith(prefix)
 
   return (
     <Sidebar>
-      <SidebarHeader className="h-14 justify-center border-b px-4">
-        <h2 className="text-lg font-semibold text-primary flex items-center gap-2">
-          <Store className="h-5 w-5 shrink-0"/> Qurbat ERP
-        </h2>
+      <SidebarHeader className="h-14 justify-center border-b px-3">
+        <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden group">
+          {organization?.logo_url ? (
+            <div className="h-8 w-8 rounded-lg overflow-hidden border border-border/60 bg-muted/20 flex items-center justify-center shrink-0">
+              <img
+                src={organization.logo_url}
+                alt={organization.name || 'Brand Logo'}
+                className="h-full w-full object-contain"
+              />
+            </div>
+          ) : (
+            <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Store className="h-4 w-4" />
+            </div>
+          )}
+          <span className="font-semibold text-base tracking-tight text-foreground truncate group-hover:text-primary transition-colors">
+            {organization?.name || 'Qurbat ERP'}
+          </span>
+        </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu className="mt-4 px-2 space-y-1">
@@ -49,6 +96,112 @@ export function AppSidebar({ role }: { role: UserRole }) {
               <Home /><span>Dashboard</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
+
+          {role === 'owner' && (
+            <SidebarMenuItem>
+              <SidebarMenuButton 
+                render={<Link href="/chat" />} 
+                tooltip="AI Chat (Owner)"
+                isActive={isPrefix('/chat') && !currentSessionId}
+                className="text-emerald-600 dark:text-emerald-400 font-medium"
+              >
+                <Sparkles className="h-4 w-4 text-emerald-500 shrink-0" />
+                <span className="flex items-center justify-between w-full">
+                  AI Chat
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold uppercase tracking-wider border border-emerald-500/20">
+                    Pro
+                  </span>
+                </span>
+              </SidebarMenuButton>
+
+              {/* Structured AI Sub-Panel */}
+              <div className="ml-3 pl-3 my-1.5 space-y-2 border-l-2 border-emerald-500/20 group-data-[collapsible=icon]:hidden">
+                {/* 1. New Chat Action Button */}
+                <Link
+                  href="/chat"
+                  className={cn(
+                    "flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all group",
+                    isExact('/chat') && !currentSessionId
+                      ? "bg-emerald-600 text-white shadow-xs font-semibold dark:bg-emerald-500"
+                      : "bg-muted/50 hover:bg-muted text-foreground border border-border/70 hover:border-border shadow-2xs"
+                  )}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Plus className={cn("h-3.5 w-3.5 transition-transform group-hover:scale-110", isExact('/chat') && !currentSessionId ? "text-white" : "text-emerald-500")} />
+                    <span>New Chat</span>
+                  </span>
+                  <span className={cn("text-[10px] font-mono px-1 py-0.5 rounded", isExact('/chat') && !currentSessionId ? "bg-white/20 text-white" : "bg-background/80 text-muted-foreground border border-border/40")}>
+                    ⌘K
+                  </span>
+                </Link>
+
+                {/* 2. Recent Chats Section Header */}
+                <div className="flex items-center justify-between px-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="h-3 w-3 text-muted-foreground/60" />
+                    Recent Chats
+                  </span>
+                  {recentChats.length > 0 && (
+                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-muted text-muted-foreground border border-border/40">
+                      {recentChats.length}
+                    </span>
+                  )}
+                </div>
+
+                {/* 3. Recent Chats List */}
+                <div className="space-y-0.5 max-h-52 overflow-y-auto pr-0.5">
+                  {recentChats.length > 0 ? (
+                    recentChats.map((chat) => {
+                      const isActive = currentSessionId === chat.id
+                      return (
+                        <div
+                          key={chat.id}
+                          className={cn(
+                            "group/chat flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-md text-xs transition-all relative",
+                            isActive
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium border border-emerald-500/25 shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                          )}
+                        >
+                          <Link
+                            href={`/chat?session=${chat.id}`}
+                            className="flex items-center gap-2 truncate flex-1 min-w-0"
+                            title={chat.title}
+                          >
+                            <MessageSquare className={cn(
+                              "h-3.5 w-3.5 shrink-0 transition-colors",
+                              isActive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/60 group-hover/chat:text-foreground"
+                            )} />
+                            <span className="truncate">{chat.title}</span>
+                          </Link>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              deleteChatSession(chat.id)
+                              if (currentSessionId === chat.id && typeof window !== 'undefined') {
+                                window.location.href = '/chat'
+                              }
+                            }}
+                            className="opacity-0 group-hover/chat:opacity-100 p-1 rounded hover:bg-destructive/15 hover:text-destructive text-muted-foreground transition-all shrink-0"
+                            title="Delete conversation"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="px-2 py-2 text-[11px] text-muted-foreground/50 italic text-center">
+                      No conversations yet
+                    </div>
+                  )}
+                </div>
+              </div>
+            </SidebarMenuItem>
+          )}
 
           <SidebarMenuItem>
             <SidebarMenuButton 
