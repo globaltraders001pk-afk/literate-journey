@@ -1,9 +1,19 @@
+import { Suspense } from 'react'
 import { getStockLevels } from '@/app/actions/inventory'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import StockLoading from './loading'
 
-export default async function StockPage() {
+export default function StockPage() {
+  return (
+    <Suspense fallback={<StockLoading />}>
+      <StockDataLoader />
+    </Suspense>
+  )
+}
+
+async function StockDataLoader() {
   const stockLevels = await getStockLevels()
 
   return (

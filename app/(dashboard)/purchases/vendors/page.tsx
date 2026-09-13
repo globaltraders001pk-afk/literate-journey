@@ -14,7 +14,7 @@ export default async function VendorsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-normal">Vendors & Suppliers</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Manage cheese milk, culture, rennet, and packaging suppliers, agreed rates, and order history.
+            Manage material, equipment, and packaging suppliers, agreed rates, and order history.
           </p>
         </div>
         <VendorForm />

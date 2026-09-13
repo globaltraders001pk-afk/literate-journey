@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { getProducts, getCategories } from '@/app/actions/inventory'
 import { getUserProfile } from '@/lib/auth-utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -5,8 +6,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ProductForm } from './product-form'
 import { DeleteProductButton } from './delete-product-button'
 import { Badge } from '@/components/ui/badge'
+import ProductsLoading from './loading'
 
-export default async function ProductsPage() {
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<ProductsLoading />}>
+      <ProductsDataLoader />
+    </Suspense>
+  )
+}
+
+async function ProductsDataLoader() {
   const [products, categories, profile] = await Promise.all([
     getProducts(),
     getCategories(),
@@ -20,7 +30,7 @@ export default async function ProductsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-semibold tracking-normal">Products</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Manage your cheese product catalog, weights, and pricing.</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage your product catalog, weights, and pricing.</p>
         </div>
         <ProductForm categories={categories || []} canViewCost={canViewCost} />
       </div>

@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import { ChatClient } from './chat-client'
 
+import ChatLoading from './loading'
+
 export const metadata = {
   title: 'AI Command Chat - Qurbat ERP',
   description: 'ChatGPT-style autonomous AI agent command center for Qurbat ERP'
@@ -20,7 +22,7 @@ export default async function ChatPage() {
   }
 
   return (
-    <Suspense fallback={<div className="flex h-full items-center justify-center bg-background text-muted-foreground text-sm">Loading AI Command Center...</div>}>
+    <Suspense fallback={<ChatLoading />}>
       <ChatClient profile={profile} />
     </Suspense>
   )

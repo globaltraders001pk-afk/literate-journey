@@ -1,8 +1,18 @@
+import { Suspense } from 'react'
 import { getProducts } from '@/app/actions/inventory'
 import { getCustomers } from '@/app/actions/sales'
 import { POSClient } from './pos-client'
+import POSLoading from './loading'
 
-export default async function POSPage() {
+export default function POSPage() {
+  return (
+    <Suspense fallback={<POSLoading />}>
+      <POSDataLoader />
+    </Suspense>
+  )
+}
+
+async function POSDataLoader() {
   const [products, customers] = await Promise.all([
     getProducts(),
     getCustomers()

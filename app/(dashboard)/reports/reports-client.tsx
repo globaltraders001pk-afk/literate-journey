@@ -44,7 +44,7 @@ export function ReportsClient({ data }: { data: any }) {
       <div>
         <h1 className="text-2xl font-semibold tracking-normal text-foreground">Analytics & Reports</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Operational reporting, cheese inventory movements, supplier purchasing, and financial performance.
+          Operational reporting, product inventory movements, supplier purchasing, and financial performance.
         </p>
       </div>
 
