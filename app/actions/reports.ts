@@ -20,12 +20,40 @@ export async function getComprehensiveReports() {
 
   const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-  // 1. Sales Data
-  const { data: allSales } = await supabase
-    .from('sales')
-    .select('id, invoice_number, total_amount, payment_method, created_at')
-    .eq('organization_id', orgId)
-    .order('created_at', { ascending: false })
+  // Execute all reports data queries concurrently in parallel
+  const [salesRes, saleItemsRes, movementsRes, purchaseOrdersRes, expensesRes, payrollsRes] = await Promise.all([
+    supabase
+      .from('sales')
+      .select('id, invoice_number, total_amount, payment_method, created_at')
+      .eq('organization_id', orgId)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('sale_items')
+      .select('quantity, subtotal, products(name, cost_price)')
+      .order('id', { ascending: false })
+      .limit(500),
+    supabase
+      .from('inventory_movements')
+      .select('movement_type, quantity, products(name)')
+      .eq('organization_id', orgId),
+    supabase
+      .from('purchase_orders')
+      .select('total_amount, status, created_at, vendors(name)')
+      .eq('organization_id', orgId),
+    isOwnerOrAdmin
+      ? supabase.from('expenses').select('amount').eq('organization_id', orgId)
+      : Promise.resolve({ data: [] as any[] }),
+    isOwnerOrAdmin
+      ? supabase.from('payroll').select('net_salary').eq('organization_id', orgId).eq('status', 'paid')
+      : Promise.resolve({ data: [] as any[] })
+  ])
+
+  const allSales = salesRes.data || []
+  const saleItems = saleItemsRes.data || []
+  const movements = movementsRes.data || []
+  const purchaseOrders = purchaseOrdersRes.data || []
+  const expenses = expensesRes.data || []
+  const payrolls = payrollsRes.data || []
 
   let todaySalesTotal = 0
   let todaySalesCount = 0
@@ -42,7 +70,7 @@ export async function getComprehensiveReports() {
     dailyTrendMap.set(key, { count: 0, amount: 0 })
   }
 
-  allSales?.forEach((sale: any) => {
+  allSales.forEach((sale: any) => {
     const saleDate = new Date(sale.created_at)
     const saleDateStr = sale.created_at.split('T')[0]
     const amount = parseFloat(sale.total_amount) || 0
@@ -73,14 +101,10 @@ export async function getComprehensiveReports() {
   }))
 
   // Top Products
-  const { data: saleItems } = await supabase
-    .from('sale_items')
-    .select('quantity, subtotal, products(name, cost_price)')
-
   const productSalesMap = new Map<string, { name: string; quantity: number; revenue: number; cogs: number }>()
   let totalCogs = 0
 
-  saleItems?.forEach((item: any) => {
+  saleItems.forEach((item: any) => {
     const name = Array.isArray(item.products) ? item.products[0]?.name : item.products?.name
     const costPrice = Array.isArray(item.products) ? parseFloat(item.products[0]?.cost_price) || 0 : parseFloat(item.products?.cost_price) || 0
     const qty = item.quantity || 0
@@ -104,11 +128,6 @@ export async function getComprehensiveReports() {
     .slice(0, 8)
 
   // 2. Stock Movement & Wastage Data
-  const { data: movements } = await supabase
-    .from('inventory_movements')
-    .select('movement_type, quantity, products(name)')
-    .eq('organization_id', orgId)
-
   let stockInTotal = 0
   let stockOutTotal = 0
   let wastageTotal = 0
@@ -116,7 +135,7 @@ export async function getComprehensiveReports() {
 
   const wastageByProductMap = new Map<string, number>()
 
-  movements?.forEach((m: any) => {
+  movements.forEach((m: any) => {
     const qty = Math.abs(m.quantity) || 0
     const prodName = Array.isArray(m.products) ? m.products[0]?.name : m.products?.name
 
@@ -137,14 +156,9 @@ export async function getComprehensiveReports() {
     .slice(0, 5)
 
   // 3. Vendor Purchase Report
-  const { data: purchaseOrders } = await supabase
-    .from('purchase_orders')
-    .select('total_amount, status, created_at, vendors(name)')
-    .eq('organization_id', orgId)
-
   const vendorReportMap = new Map<string, { vendorName: string; orderCount: number; totalSpent: number; lastOrder: string }>()
 
-  purchaseOrders?.forEach((po: any) => {
+  purchaseOrders.forEach((po: any) => {
     const vendorName = Array.isArray(po.vendors) ? po.vendors[0]?.name : po.vendors?.name || 'Unknown Supplier'
     const amount = parseFloat(po.total_amount) || 0
     const dateStr = po.created_at.split('T')[0]
@@ -164,20 +178,8 @@ export async function getComprehensiveReports() {
   // 4. Profit & Loss Summary (Owner / Admin Level Only)
   let pnlSummary = null
   if (isOwnerOrAdmin) {
-    const { data: expenses } = await supabase
-      .from('expenses')
-      .select('amount')
-      .eq('organization_id', orgId)
-
-    const totalOperatingExpenses = expenses?.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0) || 0
-
-    const { data: payrolls } = await supabase
-      .from('payroll')
-      .select('net_salary')
-      .eq('organization_id', orgId)
-      .eq('status', 'paid')
-
-    const totalPaidPayroll = payrolls?.reduce((sum, p) => sum + (parseFloat(p.net_salary) || 0), 0) || 0
+    const totalOperatingExpenses = expenses.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0)
+    const totalPaidPayroll = payrolls.reduce((sum: number, p: any) => sum + (parseFloat(p.net_salary) || 0), 0)
 
     const totalRevenue = allSales?.reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0) || 0
     const grossProfit = totalRevenue - totalCogs

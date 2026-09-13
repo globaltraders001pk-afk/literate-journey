@@ -195,6 +195,8 @@
   pointer-events: none;
   overflow: hidden;
   z-index: 0;
+  contain: strict;
+  transform: translate3d(0, 0, 0);
 }
 
 :root .expensive-aurora-canvas {
@@ -213,59 +215,58 @@
     radial-gradient(at 0% 100%, rgba(217, 119, 6, 0.04) 0px, transparent 50%);
 }
 
-/* Primary Top Center Emerald / Cyan Luminescence */
+/* Primary Top Center Emerald / Cyan Luminescence (Hardware-accelerated zero-cost gradient) */
 .expensive-orb-primary {
   position: absolute;
-  top: -12%;
+  top: -10%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translate3d(0, 0, 0);
   width: min(1100px, 95vw);
-  height: 560px;
+  height: 540px;
   border-radius: 9999px;
-  filter: blur(95px);
-  animation: luxury-pulse-slow 14s ease-in-out infinite;
-  will-change: transform, opacity;
+  animation: luxury-pulse-slow 20s ease-in-out infinite;
+  pointer-events: none;
 }
 
 :root .expensive-orb-primary {
   background: radial-gradient(
     ellipse at center,
-    rgba(16, 185, 129, 0.14) 0%,
-    rgba(6, 182, 212, 0.09) 45%,
-    rgba(14, 165, 233, 0.03) 70%,
-    transparent 85%
+    rgba(16, 185, 129, 0.16) 0%,
+    rgba(6, 182, 212, 0.10) 35%,
+    rgba(14, 165, 233, 0.03) 60%,
+    transparent 75%
   );
 }
 
 .dark .expensive-orb-primary {
   background: radial-gradient(
     ellipse at center,
-    rgba(16, 185, 129, 0.24) 0%,
-    rgba(20, 184, 166, 0.15) 40%,
-    rgba(6, 182, 212, 0.09) 70%,
-    transparent 85%
+    rgba(16, 185, 129, 0.26) 0%,
+    rgba(20, 184, 166, 0.16) 35%,
+    rgba(6, 182, 212, 0.08) 60%,
+    transparent 75%
   );
 }
 
 /* Secondary Top Right Sapphire / Violet Prism Glow */
 .expensive-orb-secondary {
   position: absolute;
-  top: -8%;
+  top: -6%;
   right: -5%;
   width: min(680px, 65vw);
-  height: 500px;
+  height: 480px;
   border-radius: 9999px;
-  filter: blur(85px);
-  animation: luxury-drift-subtle 18s ease-in-out infinite;
-  will-change: transform;
+  animation: luxury-drift-subtle 24s ease-in-out infinite;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
 }
 
 :root .expensive-orb-secondary {
   background: radial-gradient(
     circle at center,
-    rgba(99, 102, 241, 0.08) 0%,
-    rgba(14, 165, 233, 0.05) 50%,
-    transparent 75%
+    rgba(99, 102, 241, 0.09) 0%,
+    rgba(14, 165, 233, 0.05) 45%,
+    transparent 70%
   );
 }
 
@@ -273,8 +274,8 @@
   background: radial-gradient(
     circle at center,
     rgba(79, 70, 229, 0.18) 0%,
-    rgba(56, 189, 248, 0.10) 45%,
-    transparent 75%
+    rgba(56, 189, 248, 0.09) 45%,
+    transparent 70%
   );
 }
 
@@ -284,27 +285,27 @@
   bottom: 0%;
   left: -8%;
   width: min(580px, 55vw);
-  height: 480px;
+  height: 460px;
   border-radius: 9999px;
-  filter: blur(100px);
-  opacity: 0.65;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
 }
 
 :root .expensive-orb-tertiary {
   background: radial-gradient(
     circle at center,
-    rgba(245, 158, 11, 0.04) 0%,
-    rgba(16, 185, 129, 0.03) 50%,
-    transparent 75%
+    rgba(245, 158, 11, 0.05) 0%,
+    rgba(16, 185, 129, 0.03) 40%,
+    transparent 68%
   );
 }
 
 .dark .expensive-orb-tertiary {
   background: radial-gradient(
     circle at center,
-    rgba(217, 119, 6, 0.09) 0%,
-    rgba(16, 185, 129, 0.05) 50%,
-    transparent 75%
+    rgba(217, 119, 6, 0.10) 0%,
+    rgba(16, 185, 129, 0.05) 40%,
+    transparent 68%
   );
 }
 
@@ -345,8 +346,8 @@
 
 /* Expensive Frosted Glass Texture & Bevel Highlight */
 .expensive-glass {
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   box-shadow: 
     0 1px 3px 0 rgba(0, 0, 0, 0.04),
     inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
@@ -365,10 +366,10 @@
   position: relative;
   background: linear-gradient(
     140deg,
-    rgba(255, 255, 255, 0.95) 0%,
-    rgba(236, 253, 245, 0.75) 35%,
-    rgba(204, 251, 241, 0.65) 70%,
-    rgba(224, 242, 254, 0.75) 100%
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(236, 253, 245, 0.78) 35%,
+    rgba(204, 251, 241, 0.68) 70%,
+    rgba(224, 242, 254, 0.78) 100%
   ) !important;
   border: 1px solid rgba(16, 185, 129, 0.25) !important;
   box-shadow: 
@@ -376,9 +377,9 @@
     0 2px 6px -1px rgba(0, 0, 0, 0.03),
     inset 0 1px 0 0 rgba(255, 255, 255, 0.95),
     inset 0 0 20px 0 rgba(16, 185, 129, 0.04) !important;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease !important;
 }
 
 [data-slot="card"]:hover, .card:hover {
@@ -393,10 +394,10 @@
 .dark [data-slot="card"], .dark .card {
   background: linear-gradient(
     140deg,
-    rgba(26, 42, 34, 0.88) 0%,
-    rgba(16, 26, 22, 0.92) 40%,
-    rgba(12, 20, 26, 0.95) 75%,
-    rgba(18, 24, 36, 0.92) 100%
+    rgba(26, 42, 34, 0.92) 0%,
+    rgba(16, 26, 22, 0.94) 40%,
+    rgba(12, 20, 26, 0.96) 75%,
+    rgba(18, 24, 36, 0.94) 100%
   ) !important;
   border: 1px solid rgba(16, 185, 129, 0.28) !important;
   box-shadow: 
@@ -404,6 +405,8 @@
     0 0 0 1px rgba(255, 255, 255, 0.06),
     inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
     inset 0 0 24px 0 rgba(16, 185, 129, 0.06) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .dark [data-slot="card"]:hover, .dark .card:hover {

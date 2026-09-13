@@ -76,7 +76,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               {isAdminOrOwner 
-                ? 'Executive Cheese Dashboard' 
+                ? 'Executive Business Dashboard' 
                 : isManager 
                   ? 'Manager Operations Dashboard' 
                   : 'Shift Operations Dashboard'}
@@ -141,7 +141,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
               render={<Link href="/inventory/products" />}
             >
               <Plus className="h-4 w-4 text-primary" />
-              <span>Add Cheese Product</span>
+              <span>Add New Product</span>
             </Button>
           </>
         )}
@@ -238,7 +238,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
           <CardContent>
             <div className="text-2xl font-bold text-foreground">{stats.lowStock}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {stats.lowStock > 0 ? 'Products below minimum reorder level' : 'All cheese inventory levels healthy'}
+              {stats.lowStock > 0 ? 'Products below minimum reorder level' : 'All inventory levels healthy'}
             </p>
           </CardContent>
         </Card>
@@ -265,7 +265,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         <Card className="border-border/70 shadow-xs">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Cheese Catalog
+              Product Catalog
             </CardTitle>
             <div className="p-2 rounded-lg bg-primary/10 text-primary">
               <Boxes className="h-4 w-4" />
@@ -298,8 +298,8 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                     </CardTitle>
                     <CardDescription className="text-xs">
                       {isAdminOrOwner 
-                        ? 'Daily cheese sales performance over the past week' 
-                        : 'Daily customer cheese orders and sales activity'}
+                        ? 'Daily sales performance over the past week' 
+                        : 'Daily customer orders and sales activity'}
                     </CardDescription>
                   </div>
                   <Badge variant="outline" className="text-xs font-normal">
@@ -355,7 +355,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                     <div className="flex items-center justify-between mb-2.5">
                       <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                         <Flame className="h-3.5 w-3.5 text-amber-500" />
-                        Top Performing Cheeses
+                        Top Performing Products
                       </h4>
                       <Link href="/reports" className="text-xs text-primary hover:underline flex items-center gap-1">
                         Full report <ArrowUpRight className="h-3 w-3" />
@@ -395,7 +395,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
             <Card className="border-border/70 shadow-xs">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base font-semibold">Shift Operations & Guidelines</CardTitle>
-                <CardDescription className="text-xs">Quick procedures for daily cheese handling and inventory control</CardDescription>
+                <CardDescription className="text-xs">Quick procedures for daily product handling and inventory control</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-xs text-muted-foreground">
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -440,7 +440,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                 <div className="text-center py-8 border border-dashed rounded-lg border-border/60">
                   <ShoppingCart className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-50" />
                   <p className="text-sm font-medium text-foreground">No recent transactions</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Start ringing up cheese orders in the Point of Sale.</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Start ringing up customer orders in the Point of Sale.</p>
                   <Button 
                     size="sm" 
                     className="mt-3 cursor-pointer"

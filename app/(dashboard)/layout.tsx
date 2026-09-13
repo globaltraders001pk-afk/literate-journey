@@ -2,26 +2,15 @@ import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { ReactNode } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { getUserProfile } from '@/lib/auth-utils'
+import { getUserProfile, getOrganization } from '@/lib/auth-utils'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Badge } from '@/components/ui/badge'
-import { createClient } from '@/lib/supabase/server'
 import { OrganizationProvider } from '@/components/providers/organization-provider'
 import { ExpensiveAmbientMesh } from '@/components/expensive-ambient-mesh'
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const profile = await getUserProfile()
-  const supabase = await createClient()
-
-  let organization = null
-  if (profile?.organization_id) {
-    const { data } = await supabase
-      .from('organizations')
-      .select('*')
-      .eq('id', profile.organization_id)
-      .single()
-    organization = data
-  }
+  const organization = profile?.organization_id ? await getOrganization(profile.organization_id) : null
   
   return (
     <TooltipProvider>
