@@ -15,8 +15,8 @@ import {
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { processCheckout } from '@/app/actions/sales'
-import { Minus, Plus, ShoppingCart, Trash2, Printer, CheckCircle2, Store } from 'lucide-react'
 import { useOrganization } from '@/components/providers/organization-provider'
+import { Minus, Plus, ShoppingCart, Trash2, Printer, CheckCircle2, Store, Loader2 } from 'lucide-react'
 
 type CartItem = {
   product_id: string
@@ -334,12 +334,19 @@ export function POSClient({ products, customers }: { products: any[], customers:
             </div>
             
             <Button 
-              className="w-full h-12 text-lg cursor-pointer" 
+              className="w-full h-12 text-lg cursor-pointer transition-all duration-200" 
               size="lg" 
               onClick={handleCheckout}
               disabled={cart.length === 0 || pending}
             >
-              {pending ? 'Processing...' : 'Complete Checkout'}
+              {pending ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Processing Checkout...</span>
+                </div>
+              ) : (
+                'Complete Checkout'
+              )}
             </Button>
           </div>
         </Card>

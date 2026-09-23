@@ -29,22 +29,24 @@ export async function generatePayroll(month: number, year: number) {
 
   if (!employees || employees.length === 0) return { error: 'No active employees to generate payroll for' }
 
-  // 2. Upsert payroll records for each employee
-  for (const emp of employees) {
-    const net_salary = emp.base_salary // In a real app, calculate deductions based on attendance
-    
-    await supabase.from('payroll').upsert({
-      organization_id: profile.organization_id,
-      employee_id: emp.id,
-      month,
-      year,
-      basic_salary: emp.base_salary,
-      deductions: 0,
-      bonuses: 0,
-      net_salary: net_salary,
-      status: 'draft'
-    }, { onConflict: 'employee_id,month,year' })
-  }
+  // 2. Batch upsert payroll records for all employees in a single query
+  const payrollEntries = employees.map(emp => ({
+    organization_id: profile.organization_id,
+    employee_id: emp.id,
+    month,
+    year,
+    basic_salary: emp.base_salary,
+    deductions: 0,
+    bonuses: 0,
+    net_salary: emp.base_salary,
+    status: 'draft'
+  }))
+
+  const { error: upsertError } = await supabase
+    .from('payroll')
+    .upsert(payrollEntries, { onConflict: 'employee_id,month,year' })
+
+  if (upsertError) return { error: upsertError.message }
 
   revalidatePath('/employees/payroll')
   return { success: true }

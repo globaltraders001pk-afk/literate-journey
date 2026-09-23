@@ -80,20 +80,19 @@ export async function processReturn(
 
   if (retError) return { error: retError.message }
 
-  // Create Return Items & Inventory Movements
-  for (const item of returnItems) {
-    // 1. Insert return item
-    await supabase.from('return_items').insert({
-      return_id: ret.id,
-      product_id: item.product_id,
-      quantity: item.quantity,
-      return_action: item.return_action,
-      refund_amount: item.refund_amount
-    })
+  // 2. Prepare Batched Return Items & Inventory Movements
+  const returnItemsPayload = returnItems.map(item => ({
+    return_id: ret.id,
+    product_id: item.product_id,
+    quantity: item.quantity,
+    return_action: item.return_action,
+    refund_amount: item.refund_amount
+  }))
 
-    // 2. Insert inventory movement based on action
+  const inventoryMovementsPayload: any[] = []
+  for (const item of returnItems) {
     if (item.return_action === 'restock') {
-      await supabase.from('inventory_movements').insert({
+      inventoryMovementsPayload.push({
         organization_id: profile.organization_id,
         branch_id: branch.id,
         product_id: item.product_id,
@@ -104,8 +103,8 @@ export async function processReturn(
         notes: `Restocked from return ${return_number}`,
         created_by: profile.id
       })
-    } else if (item.return_action === 'damage') {
-      await supabase.from('inventory_movements').insert({
+    } else if (item.return_action === 'damage' || item.return_action === 'discard') {
+      inventoryMovementsPayload.push({
         organization_id: profile.organization_id,
         branch_id: branch.id,
         product_id: item.product_id,
@@ -113,39 +112,40 @@ export async function processReturn(
         quantity: -item.quantity,
         reference_type: 'return',
         reference_id: ret.id,
-        notes: `Damaged from return ${return_number}`,
-        created_by: profile.id
-      })
-    } else if (item.return_action === 'discard') {
-      // Discard = expired/wasted, logged as a negative movement
-      await supabase.from('inventory_movements').insert({
-        organization_id: profile.organization_id,
-        branch_id: branch.id,
-        product_id: item.product_id,
-        movement_type: 'WASTAGE',
-        quantity: -item.quantity,
-        reference_type: 'return',
-        reference_id: ret.id,
-        notes: `Discarded from return ${return_number}`,
+        notes: `${item.return_action === 'damage' ? 'Damaged' : 'Discarded'} from return ${return_number}`,
         created_by: profile.id
       })
     }
   }
 
-  // Deduct from customer total_spent if applicable
-  if (customer_id && totalRefund > 0) {
-    const { data: customerData } = await supabase
-      .from('customers')
-      .select('total_spent')
-      .eq('id', customer_id)
-      .single()
-      
-    const currentTotal = customerData?.total_spent || 0
-    await supabase
-      .from('customers')
-      .update({ total_spent: Number(currentTotal) - totalRefund })
-      .eq('id', customer_id)
+  const tasks: PromiseLike<any>[] = [
+    supabase.from('return_items').insert(returnItemsPayload)
+  ]
+
+  if (inventoryMovementsPayload.length > 0) {
+    tasks.push(supabase.from('inventory_movements').insert(inventoryMovementsPayload))
   }
+
+  // Deduct from customer total_spent if applicable in parallel
+  if (customer_id && totalRefund > 0) {
+    tasks.push(
+      (async () => {
+        const { data: customerData } = await supabase
+          .from('customers')
+          .select('total_spent')
+          .eq('id', customer_id)
+          .single()
+          
+        const currentTotal = customerData?.total_spent || 0
+        await supabase
+          .from('customers')
+          .update({ total_spent: Math.max(0, Number(currentTotal) - totalRefund) })
+          .eq('id', customer_id)
+      })()
+    )
+  }
+
+  await Promise.all(tasks)
 
   revalidatePath('/sales/returns')
   revalidatePath('/inventory/stock')

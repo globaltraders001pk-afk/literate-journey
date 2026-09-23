@@ -105,7 +105,7 @@ export async function processCheckout(
     normalizedPayment = 'CASH'
   }
 
-  // Create Sale Header
+  // 1. Create Sale Header
   const { data: sale, error: saleError } = await supabase
     .from('sales')
     .insert({
@@ -123,49 +123,65 @@ export async function processCheckout(
 
   if (saleError) return { error: saleError.message }
 
-  // Create Sale Items & Inventory Movements
-  for (const item of cart) {
-    // 1. Insert sale item
-    await supabase.from('sale_items').insert({
-      sale_id: sale.id,
-      product_id: item.product_id,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      subtotal: item.subtotal
-    })
+  // 2. Prepare Batched Sale Items & Inventory Movements (Batch Insert in 1 roundtrip)
+  const saleItemsPayload = cart.map(item => ({
+    sale_id: sale.id,
+    product_id: item.product_id,
+    quantity: item.quantity,
+    unit_price: item.unit_price,
+    subtotal: item.subtotal
+  }))
 
-    // 2. Insert inventory movement (deduct stock with valid enum STOCK_OUT)
-    await supabase.from('inventory_movements').insert({
-      organization_id: profile.organization_id,
-      branch_id: branch.id,
-      product_id: item.product_id,
-      movement_type: 'STOCK_OUT',
-      quantity: -item.quantity, // Negative for sale
-      reference_type: 'sale',
-      reference_id: sale.id,
-      notes: `Sale ${invoice_number}`,
-      created_by: profile.id
-    })
+  const inventoryMovementsPayload = cart.map(item => ({
+    organization_id: profile.organization_id,
+    branch_id: branch.id,
+    product_id: item.product_id,
+    movement_type: 'STOCK_OUT',
+    quantity: -item.quantity, // Negative for sale deduction
+    reference_type: 'sale',
+    reference_id: sale.id,
+    notes: `Sale ${invoice_number}`,
+    created_by: profile.id
+  }))
+
+  // 3. Execute batched writes in parallel for lightning-fast invoice generation
+  const tasks: PromiseLike<any>[] = [
+    supabase.from('sale_items').insert(saleItemsPayload),
+    supabase.from('inventory_movements').insert(inventoryMovementsPayload)
+  ]
+
+  // If customer is selected, update customer total_spent in parallel
+  if (customerId) {
+    tasks.push(
+      (async () => {
+        const { data: customerData } = await supabase
+          .from('customers')
+          .select('total_spent')
+          .eq('id', customerId)
+          .single()
+        const currentTotal = customerData?.total_spent || 0
+        await supabase
+          .from('customers')
+          .update({ total_spent: Number(currentTotal) + totalAmount })
+          .eq('id', customerId)
+      })()
+    )
   }
 
-  // Update customer total_spent if applicable
-  if (customerId) {
-    // Fetch current customer to get total_spent
-    const { data: customerData } = await supabase
-      .from('customers')
-      .select('total_spent')
-      .eq('id', customerId)
-      .single()
-      
-    const currentTotal = customerData?.total_spent || 0
-    await supabase
-      .from('customers')
-      .update({ total_spent: Number(currentTotal) + totalAmount })
-      .eq('id', customerId)
+  const [itemsRes, movementsRes] = await Promise.all(tasks)
+
+  if (itemsRes?.error) {
+    console.error('Error batch inserting sale items:', itemsRes.error)
+  }
+  if (movementsRes?.error) {
+    console.error('Error batch inserting inventory movements:', movementsRes.error)
   }
 
   revalidatePath('/inventory/stock')
   revalidatePath('/inventory/movements')
+  revalidatePath('/sales/history')
+  revalidatePath('/dashboard')
+
   return { success: true, invoice_number }
 }
 

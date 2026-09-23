@@ -238,31 +238,42 @@ export async function getStockLevels() {
         quantity
       )
     `)
+    .eq('is_active', true)
     .order('name')
   
   if (error) throw new Error(error.message)
   
   // Calculate total stock by summing movements
   return data.map((product: any) => {
-    const currentStock = product.inventory_movements.reduce((sum: number, movement: any) => sum + movement.quantity, 0)
+    const movements = product.inventory_movements || []
+    const currentStock = movements.reduce((sum: number, movement: any) => sum + (Number(movement.quantity) || 0), 0)
     return {
-      ...product,
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      minimum_stock_level: product.minimum_stock_level,
       current_stock: currentStock,
-      status: currentStock <= product.minimum_stock_level ? 'Low Stock' : 'In Stock'
+      status: currentStock <= (product.minimum_stock_level || 0) ? 'Low Stock' : 'In Stock'
     }
   })
 }
 
-export async function getMovements() {
+export async function getMovements(limit: number = 200) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('inventory_movements')
     .select(`
-      *,
+      id,
+      movement_type,
+      quantity,
+      reference_type,
+      notes,
+      created_at,
       products(name, sku),
       profiles(full_name)
     `)
     .order('created_at', { ascending: false })
+    .limit(limit)
   
   if (error) throw new Error(error.message)
   return data

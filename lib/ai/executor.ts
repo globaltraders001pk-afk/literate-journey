@@ -1179,28 +1179,50 @@ export async function executeErpTool(
 
         if (saleError) throw new Error(saleError.message)
 
-        // 7. Insert sale_items and inventory_movements (STOCK_OUT)
-        for (const item of resolvedItems) {
-          await supabase.from('sale_items').insert({
-            sale_id: sale.id,
-            product_id: item.product_id,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            subtotal: item.subtotal
-          })
+        // 7. Batch insert sale_items and inventory_movements (STOCK_OUT) in parallel
+        const saleItemsPayload = resolvedItems.map(item => ({
+          sale_id: sale.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          subtotal: item.subtotal
+        }))
 
-          await supabase.from('inventory_movements').insert({
-            organization_id: orgId,
-            branch_id: effectiveBranchId,
-            product_id: item.product_id,
-            movement_type: 'STOCK_OUT',
-            quantity: -item.quantity,
-            reference_type: 'sale',
-            reference_id: sale.id,
-            notes: notes || `POS Sale Invoice ${invoice_number}`,
-            created_by: profile.id
-          })
+        const inventoryMovementsPayload = resolvedItems.map(item => ({
+          organization_id: orgId,
+          branch_id: effectiveBranchId,
+          product_id: item.product_id,
+          movement_type: 'STOCK_OUT',
+          quantity: -item.quantity,
+          reference_type: 'sale',
+          reference_id: sale.id,
+          notes: notes || `POS Sale Invoice ${invoice_number}`,
+          created_by: profile.id
+        }))
+
+        const tasks: PromiseLike<any>[] = [
+          supabase.from('sale_items').insert(saleItemsPayload),
+          supabase.from('inventory_movements').insert(inventoryMovementsPayload)
+        ]
+
+        if (customerId) {
+          tasks.push(
+            (async () => {
+              const { data: customerData } = await supabase
+                .from('customers')
+                .select('total_spent')
+                .eq('id', customerId)
+                .single()
+              const currentTotal = customerData?.total_spent || 0
+              await supabase
+                .from('customers')
+                .update({ total_spent: Number(currentTotal) + totalAmount })
+                .eq('id', customerId)
+            })()
+          )
         }
+
+        await Promise.all(tasks)
 
         revalidatePath('/sales/pos')
         revalidatePath('/sales/history')
