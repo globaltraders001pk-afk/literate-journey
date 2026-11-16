@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { 
   updateOrganization, 
+  updateFbrSettings,
   uploadOrganizationLogo, 
   updateOrganizationLogoUrl, 
   removeOrganizationLogo 
@@ -44,15 +45,18 @@ import {
   Link2,
   Sparkles,
   X,
-  FileImage
+  FileImage,
+  ReceiptText
 } from 'lucide-react'
 
 export function SettingsClient({ 
   organization: initialOrg, 
-  isOwner = false 
+  isOwner = false,
+  canManageFbr = false
 }: { 
   organization: any; 
-  isOwner?: boolean 
+  isOwner?: boolean;
+  canManageFbr?: boolean;
 }) {
   const { theme, setTheme, resolvedTheme } = useTheme()
   const { organization: contextOrg, updateLogo, updateOrganizationState } = useOrganization()
@@ -65,6 +69,11 @@ export function SettingsClient({
   const [pending, setPending] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null)
+
+  // FBR / invoice settings state (owner or admin only)
+  const [fbrPending, setFbrPending] = React.useState(false)
+  const [fbrError, setFbrError] = React.useState<string | null>(null)
+  const [fbrSuccess, setFbrSuccess] = React.useState<string | null>(null)
 
   // Logo upload & management state
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
@@ -276,6 +285,29 @@ export function SettingsClient({
     } catch (err: any) {
       setUrlPending(false)
       setLogoError(err?.message || 'Failed to save logo URL. Please try again.')
+    }
+  }
+
+  async function handleSaveFbr(formData: FormData) {
+    setFbrPending(true)
+    setFbrError(null)
+    setFbrSuccess(null)
+
+    try {
+      const res = await updateFbrSettings(formData)
+      setFbrPending(false)
+
+      if (res?.error) {
+        setFbrError(res.error)
+      } else if (res?.success) {
+        setFbrSuccess('FBR / invoice settings saved. New invoices will use these values.')
+        if (res.organization) {
+          updateOrganizationState(res.organization)
+        }
+      }
+    } catch (err) {
+      setFbrPending(false)
+      setFbrError(err instanceof Error ? err.message : 'Failed to save FBR settings.')
     }
   }
 
@@ -910,6 +942,113 @@ export function SettingsClient({
               </p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* FBR / Invoice Settings — owner or admin only */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <ReceiptText className="h-5 w-5 text-primary" />
+            <CardTitle>FBR / Invoice</CardTitle>
+          </div>
+          <CardDescription>
+            FBR details printed on every invoice. Fill these in once — the token and barcode are
+            stored in the database and applied to all invoices automatically. Nothing here is
+            hardcoded in the code.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {fbrSuccess && (
+            <div className="p-3 text-xs rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span>{fbrSuccess}</span>
+            </div>
+          )}
+          {fbrError && (
+            <div className="p-3 text-xs rounded-md bg-destructive/10 text-destructive border border-destructive/20 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{fbrError}</span>
+            </div>
+          )}
+
+          {canManageFbr ? (
+            <form action={handleSaveFbr} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="ntn">NTN (National Tax Number)</Label>
+                  <Input
+                    id="ntn"
+                    name="ntn"
+                    placeholder="e.g. 1234567-8"
+                    defaultValue={organization?.ntn || ''}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="invoice_prefix">Invoice Prefix</Label>
+                  <Input
+                    id="invoice_prefix"
+                    name="invoice_prefix"
+                    placeholder="INV"
+                    defaultValue={organization?.invoice_prefix || 'INV'}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    New invoices are numbered PREFIX-Year-0001, e.g. INV-2026-0001.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="fbr_token">FBR Token</Label>
+                  <Input
+                    id="fbr_token"
+                    name="fbr_token"
+                    type="password"
+                    autoComplete="off"
+                    placeholder="Paste the FBR token here when the client provides it"
+                    defaultValue={organization?.fbr_token || ''}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Leave empty until the client supplies the real token.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="barcode_value">Barcode Value</Label>
+                  <Input
+                    id="barcode_value"
+                    name="barcode_value"
+                    placeholder="Leave empty to barcode the invoice number"
+                    defaultValue={organization?.barcode_value || ''}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Optional fixed value for the Code128 barcode. If empty, each invoice
+                    barcodes its own serial number.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] text-muted-foreground">
+                  Company name, address and phone come from Organization Information above.
+                </p>
+                <Button type="submit" disabled={fbrPending}>
+                  {fbrPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save FBR Settings'
+                  )}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="p-4 rounded-xl border bg-muted/20 text-xs text-muted-foreground space-y-1">
+              <p className="font-semibold text-foreground">Restricted to Owner / Admin</p>
+              <p>FBR and invoice settings can only be changed by the business owner or an admin.</p>
+              {organization?.ntn && (
+                <p className="pt-1">NTN on file: <span className="font-medium text-foreground">{organization.ntn}</span></p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

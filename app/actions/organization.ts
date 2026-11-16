@@ -86,6 +86,54 @@ export async function updateOrganization(formData: FormData) {
   return { success: true, organization: data }
 }
 
+export async function updateFbrSettings(formData: FormData) {
+  const profile = await getUserProfile()
+
+  if (!profile) {
+    return { error: 'Unauthorized. Please sign in.' }
+  }
+
+  if (profile.role !== 'owner' && profile.role !== 'admin') {
+    return { error: 'Forbidden: Only the business owner or an admin can change FBR / invoice settings.' }
+  }
+
+  if (!profile.organization_id) {
+    return { error: 'No organization linked to this account.' }
+  }
+
+  const ntn = (formData.get('ntn') as string)?.trim()
+  const fbr_token = (formData.get('fbr_token') as string)?.trim()
+  const barcode_value = (formData.get('barcode_value') as string)?.trim()
+  // Invoice prefix: uppercase letters/digits/hyphen only, max 10 chars. Defaults to INV.
+  const rawPrefix = (formData.get('invoice_prefix') as string)?.trim().toUpperCase() || 'INV'
+  const invoice_prefix = rawPrefix.replace(/[^A-Z0-9-]/g, '').slice(0, 10) || 'INV'
+
+  const supabase = await createClient()
+
+  // NOTE: ntn / fbr_token / barcode_value / invoice_prefix live ONLY in the
+  // organizations row in the database (see ~/workspace/your_files/fbr-radars-setup.sql).
+  // They are never hardcoded in source. Run that SQL on the live Supabase DB
+  // before saving here, otherwise this update fails with a "column does not exist" error.
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({
+      ntn: ntn || null,
+      fbr_token: fbr_token || null,
+      barcode_value: barcode_value || null,
+      invoice_prefix,
+    })
+    .eq('id', profile.organization_id)
+    .select()
+    .single()
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath('/settings')
+  return { success: true, organization: data }
+}
+
 export async function uploadOrganizationLogo(formData: FormData) {
   const profile = await getUserProfile()
 

@@ -10,6 +10,11 @@ export interface OrganizationData {
   phone?: string | null
   email?: string | null
   address?: string | null
+  // FBR / invoice settings (DB columns added by fbr-radars-setup.sql; null until the SQL is run)
+  ntn?: string | null
+  fbr_token?: string | null
+  barcode_value?: string | null
+  invoice_prefix?: string | null
   created_at?: string
 }
 

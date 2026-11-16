@@ -50,6 +50,50 @@ export async function createCustomer(formData: FormData) {
   return { success: true }
 }
 
+/**
+ * Next sequential invoice number for this org: <PREFIX>-<YYYY>-<NNNN>.
+ * The prefix comes from the org's FBR settings (invoice_prefix, default "INV").
+ * The sequence restarts each calendar year and counts only numbers already
+ * stored for this org in that year, so old INV-<6 digits> rows are untouched
+ * and still look up fine via getInvoiceByNumber.
+ * NOTE: two checkouts in the same instant could read the same max; there is
+ * no DB sequence / unique constraint in this repo to guard that (see report).
+ */
+async function generateSequentialInvoiceNumber(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  organizationId: string
+): Promise<string> {
+  const year = new Date().getFullYear()
+  let prefix = 'INV'
+  try {
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('invoice_prefix')
+      .eq('id', organizationId)
+      .maybeSingle()
+    const stored = (org as { invoice_prefix?: string | null } | null)?.invoice_prefix
+    if (stored && stored.trim()) prefix = stored.trim().toUpperCase()
+  } catch {
+    // FBR columns not added to the live DB yet — fall back to the default prefix.
+  }
+
+  let next = 1
+  const { data: existing, error } = await supabase
+    .from('sales')
+    .select('invoice_number')
+    .eq('organization_id', organizationId)
+    .like('invoice_number', `${prefix}-${year}-%`)
+
+  if (!error && existing) {
+    for (const row of existing as { invoice_number: string }[]) {
+      const match = /-(\d+)$/.exec(row.invoice_number || '')
+      if (match) next = Math.max(next, parseInt(match[1], 10) + 1)
+    }
+  }
+
+  return `${prefix}-${year}-${String(next).padStart(4, '0')}`
+}
+
 export async function processCheckout(
   cart: { product_id: string, quantity: number, unit_price: number, subtotal: number }[],
   customerId: string | null,
@@ -88,7 +132,7 @@ export async function processCheckout(
     branch = newBranch
   }
 
-  const invoice_number = `INV-${Date.now().toString().slice(-6)}`
+  const invoice_number = await generateSequentialInvoiceNumber(supabase, profile.organization_id)
 
   // Normalize payment method to match Postgres enum payment_method: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'ONLINE' | 'CREDIT'
   let normalizedPayment: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'ONLINE' | 'CREDIT' = 'CASH'

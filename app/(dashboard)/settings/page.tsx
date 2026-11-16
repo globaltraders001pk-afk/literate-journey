@@ -26,6 +26,7 @@ export default async function SettingsPage() {
       <SettingsClient 
         organization={organization} 
         isOwner={profile?.role === 'owner'} 
+        canManageFbr={profile?.role === 'owner' || profile?.role === 'admin'} 
       />
     </div>
   )

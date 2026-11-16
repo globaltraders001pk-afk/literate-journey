@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -16,7 +16,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { processCheckout } from '@/app/actions/sales'
 import { useOrganization } from '@/components/providers/organization-provider'
-import { Minus, Plus, ShoppingCart, Trash2, Printer, CheckCircle2, Store, Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import { Minus, Plus, ShoppingCart, Trash2, Printer, CheckCircle2, Store, Loader2, FileText } from 'lucide-react'
 
 type CartItem = {
   product_id: string
@@ -473,13 +474,22 @@ export function POSClient({ products, customers }: { products: any[], customers:
             >
               Close / New Sale
             </Button>
-            <Button
-              onClick={handlePrint}
-              className="gap-2 cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              <Printer className="h-4 w-4" />
-              Print Invoice
-            </Button>
+            <div className="flex gap-2">
+              <Link
+                href={`/sales/invoices/${encodeURIComponent(completedSale?.invoiceNumber || '')}`}
+                className={buttonVariants({ variant: 'outline' })}
+              >
+                <FileText className="h-4 w-4" />
+                FBR Invoice
+              </Link>
+              <Button
+                onClick={handlePrint}
+                className="gap-2 cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Printer className="h-4 w-4" />
+                Print Invoice
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
