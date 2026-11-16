@@ -30,10 +30,11 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { updateTaskStatus } from '@/app/actions/tasks'
 import type { getCheeseCommandCenterData } from '@/app/actions/dashboard'
+import type { RadarSummary } from '@/app/actions/radars'
 
 type DashboardData = Awaited<ReturnType<typeof getCheeseCommandCenterData>>
 
-export function DashboardClient({ data }: { data: DashboardData }) {
+export function DashboardClient({ data, radarSummary }: { data: DashboardData; radarSummary?: RadarSummary | null }) {
   const { role, user_name, stats, dailyTrend, recentSales, topCheeses, lowStockItems, expiringBatches, activeTasks } = data
   const isEmployee = role === 'employee'
   const isManager = role === 'manager'
@@ -280,6 +281,39 @@ export function DashboardClient({ data }: { data: DashboardData }) {
         </Card>
 
       </div>
+
+      {/* 3b. Radars alert strip — compact early-warning summary, links to /radars */}
+      {!isEmployee && radarSummary && (
+        <Link href="/radars" className="block">
+          <Card className="border-border/70 shadow-xs hover:border-primary/40 transition-colors">
+            <CardContent className="py-3 px-4">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                <span className="flex items-center gap-1.5 font-semibold text-foreground">
+                  <ShieldAlert className="h-4 w-4 text-amber-600" />
+                  Radars
+                </span>
+                <span className="text-muted-foreground">
+                  Expiring within 6 months: <strong className="text-foreground">{radarSummary.expiringWithin180Days}</strong>
+                  {' '}(<span className={radarSummary.urgent30Days > 0 ? 'text-amber-600 font-medium' : ''}>{radarSummary.urgent30Days} urgent · 30 days</span>)
+                </span>
+                <span className="text-muted-foreground">
+                  Out of stock: <strong className={radarSummary.outOfStock > 0 ? 'text-destructive' : 'text-foreground'}>{radarSummary.outOfStock}</strong>
+                  {' '}· Low stock: <strong className={radarSummary.lowStock > 0 ? 'text-amber-600' : 'text-foreground'}>{radarSummary.lowStock}</strong>
+                </span>
+                <span className="text-muted-foreground">
+                  Pending vendor POs: <strong className="text-foreground">{radarSummary.pendingPOs}</strong>
+                  {radarSummary.overduePOs > 0 && (
+                    <span className="text-destructive font-medium"> ({radarSummary.overduePOs} overdue)</span>
+                  )}
+                </span>
+                <span className="ml-auto flex items-center gap-1 text-xs text-primary font-medium">
+                  View all radars <ChevronRight className="h-3.5 w-3.5" />
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      )}
 
       {/* 4. Main Two-Column Layout */}
       <div className="grid gap-6 lg:grid-cols-3">

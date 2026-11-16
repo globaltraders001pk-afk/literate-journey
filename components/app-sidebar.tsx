@@ -13,7 +13,7 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from '@/components/ui/sidebar'
-import { Home, Package, ShoppingCart, Users, Settings, LogOut, DollarSign, ArrowLeftRight, Undo2, Store, BarChart3, ListTodo, Sparkles, Plus, Clock, MessageSquare, Trash2 } from 'lucide-react'
+import { Home, Package, ShoppingCart, Users, Settings, LogOut, DollarSign, ArrowLeftRight, Undo2, Store, BarChart3, ListTodo, Sparkles, Plus, Clock, MessageSquare, Trash2, Radar } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/app/actions/auth'
@@ -393,6 +393,18 @@ export function AppSidebar({ role }: { role: UserRole }) {
                 isActive={isExact('/reports')}
               >
                 <BarChart3 /><span>Reports</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+
+          {!isEmployee && (
+            <SidebarMenuItem>
+              <SidebarMenuButton 
+                render={<Link href="/radars" />} 
+                tooltip="Radars"
+                isActive={isPrefix('/radars')}
+              >
+                <Radar /><span>Radars</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}

@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { getCheeseCommandCenterData } from '@/app/actions/dashboard'
+import { getRadarSummary } from '@/app/actions/radars'
 import { DashboardClient } from './dashboard-client'
 import DashboardLoading from './loading'
 
@@ -13,5 +14,8 @@ export default function DashboardPage() {
 
 async function DashboardDataLoader() {
   const data = await getCheeseCommandCenterData()
-  return <DashboardClient data={data} />
+  // Radar summary only for roles that can open /radars (owner/admin/manager).
+  const radarSummary =
+    data.role === 'employee' ? null : await getRadarSummary()
+  return <DashboardClient data={data} radarSummary={radarSummary} />
 }
