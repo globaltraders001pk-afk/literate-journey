@@ -19,6 +19,8 @@ export async function createCustomer(formData: FormData) {
   const phone = formData.get('phone') as string
   const email = formData.get('email') as string
   const address = formData.get('address') as string
+  const ntn = (formData.get('ntn') as string)?.trim()
+  const buyer_type = (formData.get('buyer_type') as string)?.trim()
 
   if (!name) return { error: 'Name is required' }
 
@@ -41,7 +43,9 @@ export async function createCustomer(formData: FormData) {
       name,
       phone,
       email,
-      address
+      address,
+      ntn: ntn || null,
+      buyer_type: buyer_type || null
     })
 
   if (error) return { error: error.message }
@@ -51,11 +55,13 @@ export async function createCustomer(formData: FormData) {
 }
 
 /**
- * Next sequential invoice number for this org: <PREFIX>-<YYYY>-<NNNN>.
- * The prefix comes from the org's FBR settings (invoice_prefix, default "INV").
- * The sequence restarts each calendar year and counts only numbers already
- * stored for this org in that year, so old INV-<6 digits> rows are untouched
- * and still look up fine via getInvoiceByNumber.
+ * Next sequential invoice number for this org: <PREFIX>/<NNNN>.
+ * The prefix comes from the org's FBR settings (invoice_prefix, default "GT-226").
+ * Format matches the client's sample invoice (e.g. GT-226/0008): the
+ * sequence NEVER restarts — it counts all of this org's `${prefix}/%`
+ * rows and takes max suffix + 1. Old INV-YYYY-NNNN and INV-xxxxxx rows
+ * are untouched and still look up fine via getInvoiceByNumber (exact
+ * invoice_number match, no format assumption).
  * NOTE: two checkouts in the same instant could read the same max; there is
  * no DB sequence / unique constraint in this repo to guard that (see report).
  */
@@ -63,8 +69,7 @@ async function generateSequentialInvoiceNumber(
   supabase: Awaited<ReturnType<typeof createClient>>,
   organizationId: string
 ): Promise<string> {
-  const year = new Date().getFullYear()
-  let prefix = 'INV'
+  let prefix = 'GT-226'
   try {
     const { data: org } = await supabase
       .from('organizations')
@@ -82,16 +87,19 @@ async function generateSequentialInvoiceNumber(
     .from('sales')
     .select('invoice_number')
     .eq('organization_id', organizationId)
-    .like('invoice_number', `${prefix}-${year}-%`)
+    .like('invoice_number', `${prefix}/%`)
 
   if (!error && existing) {
     for (const row of existing as { invoice_number: string }[]) {
-      const match = /-(\d+)$/.exec(row.invoice_number || '')
+      // Digits after the LAST "/" — e.g. "GT-226/0008" -> 8. Old
+      // "INV-2026-0001" rows never match the like() above, so they
+      // cannot collide with or inflate this sequence.
+      const match = /\/(\d+)$/.exec(row.invoice_number || '')
       if (match) next = Math.max(next, parseInt(match[1], 10) + 1)
     }
   }
 
-  return `${prefix}-${year}-${String(next).padStart(4, '0')}`
+  return `${prefix}/${String(next).padStart(4, '0')}`
 }
 
 export async function processCheckout(
@@ -247,10 +255,12 @@ export async function getInvoiceByNumber(invoiceNumber: string) {
       .from('sales')
       .select(`
         id, invoice_number, subtotal, total_amount, payment_method, created_at,
-        customer:customers(id, name, phone, email),
+        procurement_ref, fbr_status, fbr_reference_no, fbr_response_code,
+        fbr_response_message, fbr_submitted_at,
+        customer:customers(id, name, phone, email, address, ntn, buyer_type),
         items:sale_items(
           id, quantity, unit_price, subtotal,
-          product:products(id, name, sku)
+          product:products(id, name, sku, weight)
         )
       `)
       .eq('organization_id', profile.organization_id)
@@ -262,6 +272,47 @@ export async function getInvoiceByNumber(invoiceNumber: string) {
   } catch (err) {
     console.error('Error fetching invoice by number:', err)
     return null
+  }
+}
+
+/**
+ * Set / clear the procurement reference printed on an invoice
+ * (the "Procurement Ref" line from the client's sample invoice).
+ * Empty string clears it (stored as NULL). Max 50 chars.
+ * NOTE: the invoice page is /sales/invoices/[id] where id is the
+ * URL-encoded invoice number (see pos-client.tsx's link), so
+ * revalidate that concrete path — not the literal "[id]" segment.
+ */
+export async function updateProcurementRef(invoiceNumber: string, value: string) {
+  try {
+    const supabase = await createClient()
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) return { error: 'Unauthorized' }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', userData.user.id)
+      .single()
+
+    if (!profile) return { error: 'Profile not found' }
+
+    const procurement_ref = (value || '').trim().slice(0, 50) || null
+
+    const { error } = await supabase
+      .from('sales')
+      .update({ procurement_ref })
+      .eq('organization_id', profile.organization_id)
+      .eq('invoice_number', invoiceNumber)
+
+    if (error) return { error: error.message }
+
+    revalidatePath(`/sales/invoices/${encodeURIComponent(invoiceNumber)}`)
+    revalidatePath('/sales/pos')
+    return { success: true }
+  } catch (err) {
+    console.error('Error updating procurement ref:', err)
+    return { error: 'Failed to update procurement reference' }
   }
 }
 

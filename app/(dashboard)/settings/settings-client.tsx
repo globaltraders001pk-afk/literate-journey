@@ -953,9 +953,10 @@ export function SettingsClient({
             <CardTitle>FBR / Invoice</CardTitle>
           </div>
           <CardDescription>
-            FBR details printed on every invoice. Fill these in once — the token and barcode are
-            stored in the database and applied to all invoices automatically. Nothing here is
-            hardcoded in the code.
+            FBR details printed on every invoice. Fill these in once — they are
+            stored in the database and applied to all invoices automatically. The
+            FBR token is backend-only and is never printed on an invoice. Nothing
+            here is hardcoded in the code.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -989,11 +990,11 @@ export function SettingsClient({
                   <Input
                     id="invoice_prefix"
                     name="invoice_prefix"
-                    placeholder="INV"
-                    defaultValue={organization?.invoice_prefix || 'INV'}
+                    placeholder="GT-226"
+                    defaultValue={organization?.invoice_prefix || 'GT-226'}
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    New invoices are numbered PREFIX-Year-0001, e.g. INV-2026-0001.
+                    New invoices are numbered PREFIX/NNNN, e.g. GT-226/0008.
                   </p>
                 </div>
                 <div className="grid gap-2">
@@ -1007,20 +1008,67 @@ export function SettingsClient({
                     defaultValue={organization?.fbr_token || ''}
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Leave empty until the client supplies the real token.
+                    Leave empty until the client supplies the real token. Backend
+                    only — never printed on the invoice.
                   </p>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="barcode_value">Barcode Value</Label>
+                  <Label htmlFor="bank_name">Bank Name</Label>
                   <Input
-                    id="barcode_value"
-                    name="barcode_value"
-                    placeholder="Leave empty to barcode the invoice number"
-                    defaultValue={organization?.barcode_value || ''}
+                    id="bank_name"
+                    name="bank_name"
+                    placeholder="e.g. Habib Bank Limited"
+                    defaultValue={organization?.bank_name || ''}
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Optional fixed value for the Code128 barcode. If empty, each invoice
-                    barcodes its own serial number.
+                    Printed on the invoice under Order, Delivery &amp; Payment.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="bank_iban">Bank Account / IBAN</Label>
+                  <Input
+                    id="bank_iban"
+                    name="bank_iban"
+                    placeholder="e.g. PK00 HABB 0000 0000 0000 0000"
+                    defaultValue={organization?.bank_iban || ''}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="dispatch_text">Dispatch Text</Label>
+                  <Input
+                    id="dispatch_text"
+                    name="dispatch_text"
+                    placeholder="Local Courier / Hand Delivery"
+                    defaultValue={organization?.dispatch_text || ''}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="payment_terms_days">Payment Terms (days)</Label>
+                  <Input
+                    id="payment_terms_days"
+                    name="payment_terms_days"
+                    type="number"
+                    min={0}
+                    placeholder="10"
+                    defaultValue={organization?.payment_terms_days ?? 10}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Due Date on the invoice is the invoice date plus this many days.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="gst_rate">GST Rate (%)</Label>
+                  <Input
+                    id="gst_rate"
+                    name="gst_rate"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="18"
+                    defaultValue={organization?.gst_rate ?? 18}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Applied per line on the invoice (GST Total = rate × Subtotal).
                   </p>
                 </div>
               </div>

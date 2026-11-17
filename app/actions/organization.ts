@@ -13,9 +13,9 @@ export async function getPublicBrand() {
       .select('name, logo_url')
       .limit(1)
       .maybeSingle()
-    return data || { name: 'Qurbat ERP', logo_url: null }
+    return data || { name: 'Global Traders', logo_url: null }
   } catch {
-    return { name: 'Qurbat ERP', logo_url: null }
+    return { name: 'Global Traders', logo_url: null }
   }
 }
 
@@ -103,24 +103,43 @@ export async function updateFbrSettings(formData: FormData) {
 
   const ntn = (formData.get('ntn') as string)?.trim()
   const fbr_token = (formData.get('fbr_token') as string)?.trim()
-  const barcode_value = (formData.get('barcode_value') as string)?.trim()
-  // Invoice prefix: uppercase letters/digits/hyphen only, max 10 chars. Defaults to INV.
-  const rawPrefix = (formData.get('invoice_prefix') as string)?.trim().toUpperCase() || 'INV'
-  const invoice_prefix = rawPrefix.replace(/[^A-Z0-9-]/g, '').slice(0, 10) || 'INV'
+  // Invoice prefix: uppercase letters/digits/hyphen only, max 10 chars. Defaults to GT-226.
+  const rawPrefix = (formData.get('invoice_prefix') as string)?.trim().toUpperCase() || 'GT-226'
+  const invoice_prefix = rawPrefix.replace(/[^A-Z0-9-]/g, '').slice(0, 10) || 'GT-226'
+  const bank_name = (formData.get('bank_name') as string)?.trim()
+  const bank_iban = (formData.get('bank_iban') as string)?.trim()
+  const dispatch_text = (formData.get('dispatch_text') as string)?.trim()
+  // Payment terms in days (0 = due immediately), clamped 0–365, default 10.
+  const rawTerms = parseInt((formData.get('payment_terms_days') as string) || '', 10)
+  const payment_terms_days = Number.isFinite(rawTerms) ? Math.min(365, Math.max(0, rawTerms)) : 10
+  // GST rate in percent, clamped 0–100, default 18.
+  const rawGst = parseFloat((formData.get('gst_rate') as string) || '')
+  const gst_rate = Number.isFinite(rawGst) ? Math.min(100, Math.max(0, rawGst)) : 18
 
   const supabase = await createClient()
 
-  // NOTE: ntn / fbr_token / barcode_value / invoice_prefix live ONLY in the
-  // organizations row in the database (see ~/workspace/your_files/fbr-radars-setup.sql).
-  // They are never hardcoded in source. Run that SQL on the live Supabase DB
-  // before saving here, otherwise this update fails with a "column does not exist" error.
+  // NOTE: ntn / fbr_token / invoice_prefix / bank_name / bank_iban /
+  // dispatch_text / payment_terms_days / gst_rate live ONLY in the
+  // organizations row in the database (see
+  // ~/workspace/your_files/fbr-invoice-v2-delta.sql). They are never
+  // hardcoded in source. Run that SQL on the live Supabase DB before
+  // saving here, otherwise this update fails with a "column does not
+  // exist" error. barcode_value is GONE — the client's sample invoice
+  // forbids both the barcode and the FBR token on the printed invoice,
+  // so the field is dead and was removed (v2 delta, Nov 2026).
+  // fbr_token stays backend-only: it is stored here, never rendered
+  // on any invoice.
   const { data, error } = await supabase
     .from('organizations')
     .update({
       ntn: ntn || null,
       fbr_token: fbr_token || null,
-      barcode_value: barcode_value || null,
       invoice_prefix,
+      bank_name: bank_name || null,
+      bank_iban: bank_iban || null,
+      dispatch_text: dispatch_text || null,
+      payment_terms_days,
+      gst_rate,
     })
     .eq('id', profile.organization_id)
     .select()

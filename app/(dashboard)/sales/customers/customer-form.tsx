@@ -50,6 +50,16 @@ export function CustomerForm() {
               <Label htmlFor="address">Address</Label>
               <Input id="address" name="address" placeholder="Shipping Address..." />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="ntn">NTN</Label>
+                <Input id="ntn" name="ntn" placeholder="e.g. 1234567-8" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="buyer_type">Buyer Type</Label>
+                <Input id="buyer_type" name="buyer_type" placeholder="e.g. Registered, Unregistered" />
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button type="submit" disabled={pending}>
