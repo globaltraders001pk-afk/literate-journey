@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getUserProfile, checkAccess } from '@/lib/auth-utils'
+import { addDaysPKT, todayPKT, toPKTDateString } from '@/lib/dates'
 
 export async function getComprehensiveReports() {
   const profile = await getUserProfile()
@@ -11,14 +12,16 @@ export async function getComprehensiveReports() {
   const orgId = profile.organization_id
   const isOwnerOrAdmin = profile.role === 'owner' || profile.role === 'admin'
 
+  // Day boundaries are the business's calendar (Asia/Karachi),
+  // not UTC (QA audit M9): a sale at 00:30 PKT belongs to the PKT
+  // date, and the UTC instant is the previous day.
   const now = new Date()
-  const todayStr = now.toISOString().split('T')[0]
-  
-  const sevenDaysAgo = new Date(now)
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-  const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0]
+  const todayStr = todayPKT()
 
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const sevenDaysAgo = addDaysPKT(now, -7)
+  const sevenDaysAgoStr = sevenDaysAgo ? toPKTDateString(sevenDaysAgo) : todayStr
+
+  const firstDayOfMonth = `${todayStr.slice(0, 7)}-01`
 
   // Execute all reports data queries concurrently in parallel
   const [salesRes, saleItemsRes, movementsRes, purchaseOrdersRes, expensesRes, payrollsRes] = await Promise.all([
@@ -72,24 +75,23 @@ export async function getComprehensiveReports() {
   for (let i = 6; i >= 0; i--) {
     const d = new Date(now)
     d.setDate(d.getDate() - i)
-    const key = d.toISOString().split('T')[0]
+    const key = toPKTDateString(d)
     dailyTrendMap.set(key, { count: 0, amount: 0 })
   }
 
   allSales.forEach((sale: any) => {
-    const saleDate = new Date(sale.created_at)
-    const saleDateStr = sale.created_at.split('T')[0]
+    const saleDateStr = toPKTDateString(sale.created_at)
     const amount = parseFloat(sale.total_amount) || 0
 
     if (saleDateStr === todayStr) {
       todaySalesTotal += amount
       todaySalesCount++
     }
-    if (saleDate >= sevenDaysAgo) {
+    if (saleDateStr >= sevenDaysAgoStr) {
       weekSalesTotal += amount
       weekSalesCount++
     }
-    if (saleDate >= new Date(firstDayOfMonth)) {
+    if (saleDateStr >= firstDayOfMonth) {
       monthSalesTotal += amount
       monthSalesCount++
     }

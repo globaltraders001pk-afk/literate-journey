@@ -525,8 +525,12 @@ export async function createBatch(formData: FormData) {
 
   if (error) return { error: error.message }
   
-  // Also create a movement for the opening stock of this batch
-  await supabase.from('inventory_movements').insert({
+  // Also create a movement for the opening stock of this batch.
+  // The insert's error is checked now (QA audit L5): the old code
+  // fire-and-forget it, so a batch could exist with no stock
+  // movement behind it and nobody would know. The batch row
+  // already exists at this point, so the error says so plainly.
+  const { error: movementError } = await supabase.from('inventory_movements').insert({
     organization_id: profile.organization_id,
     branch_id: branch.id,
     product_id,
@@ -535,6 +539,10 @@ export async function createBatch(formData: FormData) {
     notes: `Batch ${batch_number} received`,
     created_by: profile.id
   })
+
+  if (movementError) {
+    return { error: `Batch ${batch_number} was created, but its stock movement could not be recorded: ${movementError.message}` }
+  }
 
   revalidatePath('/inventory/batches')
   revalidatePath('/inventory/stock')

@@ -114,3 +114,23 @@ Run it in the Supabase SQL Editor. Until then: saving FBR settings fails with a 
 **Assumptions to confirm with the client (flagged, not invented as fact):** GST rate 18% (Pakistan standard sales tax); payment terms 10 days; default prefix GT-226; QR value = the FBR reference number (no official FBR QR spec was provided); Specifications = product weight.
 
 **Still needs the client:** real FBR token, bank name + IBAN, buyer NTN / buyer type per customer, taxpayer category + tax treatment confirmation, and a live check (real sale → invoice page, A4 print, Settings save of the new fields, delta SQL run, Procurement Ref. save). Known cosmetic leftover (out of scope): the `tbody tr:hover` mint tint from globals.css still tints an item row green on hover — app-wide theme behaviour, not an invoice defect.
+
+---
+
+## Phase 3a fixes — 2026-11-22 (QA audit items C4/H2/H6/H7/L5/L7/L8/L9/M1–M9)
+
+Invoice, radars, dashboard and reporting consistency only. Local HEAD after this round: see `git log` (Phase 3a commits, local only, nothing pushed).
+
+### FBR scope-out decision (QA audit M1) — RECORDED HERE AND IN CODE
+The FBR fields on a sale (`fbr_status`, `fbr_reference_no`, `fbr_response_code`, `fbr_response_message`, `fbr_submitted_at`) are **storage + display only, and stay that way**. No FBR submit step exists in this app and none was built in this round: no FBR/PRAL integration spec and no real token were ever provided, so there is nothing to submit against. Every invoice therefore stays `Pending` until a submit step is built against a real spec. Deliberately NOT built: no submit button, no "submit to FBR" promise anywhere in the UI — the "Copy for FBR" button is relabelled "Copy invoice text" and the copy text no longer claims to be formatted for the FBR portal. The decision is also recorded in a code comment at the FBR fields in `app/(dashboard)/sales/invoices/[id]/fbr-invoice-client.tsx`. When the client provides the FBR spec + token, the submit step is a new, separately scoped piece of work that writes those four columns + the status transition (`Pending → Submitted/Failed`).
+
+### Other Phase 3a changes worth knowing
+- **Invoice totals (C4):** the invoice prints the STORED `gst_amount` / `grand_total` from checkout; old sales with NULL GST columns fall back to computing GST from the lines at the org rate. Verified: 138,980 → GST 25,016.40 → grand 163,996.40 on both paths.
+- **POS receipt:** Subtotal (ex-GST) / GST / Grand Total from the server values.
+- **P&L:** GST collected is its own line; gross profit is computed on ex-GST revenue. Top products (dashboard + reports) rank on ex-GST line subtotals and say so.
+- **Print gate (H7):** printing is disabled with a visible warning until seller NTN + bank details are set in Settings; unset fields print as —, never bracket placeholders; dispatch no longer defaults to an invented courier.
+- **Low stock (M3):** a stored minimum of 0 now counts as unset (10 fallback), so LOW can fire out of the box. The old "minimums set per product" note above no longer applies.
+- **Radars:** one shared `daysUntil()` / "urgent" definition (`lib/dates.ts`); vendors tab shows real outstanding PO amounts; inventory tab splits in/out; each tab renders its own error state with retry and the dashboard strip uses per-radar fallbacks (`Promise.allSettled`).
+- **Error boundary (M4):** `app/(dashboard)/error.tsx` (props per this repo's installed Next.js docs: `retry`).
+- **Dates (M9):** invoice dates, due date, expiry countdowns and dashboard day boundaries are Asia/Karachi; `YYYY-MM-DD` expiry dates parse as local calendar components.
+- **Fixed leftovers:** the `tbody tr:hover` mint tint on invoice rows is scoped off (the "known cosmetic leftover" above is closed); the Settings card no longer says "FBR details printed on every invoice"; GST 18 / terms 10 / prefix GT-226 live in one shared module (`lib/invoice-constants.ts`).
