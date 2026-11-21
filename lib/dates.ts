@@ -130,3 +130,11 @@ export function formatShortDate(dateStr: string | null): string {
     year: 'numeric',
   })
 }
+
+/** "29 Sep 2026" for a full timestamp, in Asia/Karachi. */
+export function formatShortDatePKT(value: string | Date | null | undefined): string {
+  if (!value) return '-'
+  const p = pktParts(value)
+  if (!p) return '-'
+  return `${p.day} ${MONTHS[p.month - 1].slice(0, 3)} ${p.year}`
+}

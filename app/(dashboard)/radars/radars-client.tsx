@@ -2,16 +2,16 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { formatPKR } from '@/lib/format-currency'
+import { formatShortDate, formatShortDatePKT } from '@/lib/dates'
 import type {
-  ExpiryRadar,
-  StockRadar,
-  InventoryRadar,
-  VendorsRadar,
+  RadarsBundle,
   ExpiryBand,
   StockStatus,
 } from '@/app/actions/radars'
@@ -21,8 +21,10 @@ type Tab = 'expiry' | 'stock' | 'inventory' | 'vendors'
 const EXPIRY_BANDS: { key: ExpiryBand; label: string; hint: string; badgeClass: string }[] = [
   { key: 'EXPIRED', label: 'Expired', hint: 'Already past expiry', badgeClass: 'bg-destructive text-destructive-foreground' },
   { key: 'URGENT', label: 'Urgent · under 30 days', hint: 'Expires within 30 days', badgeClass: 'bg-amber-500 text-white' },
-  { key: 'WARNING_4M', label: 'Warning · 30–120 days', hint: 'Expires within 4 months', badgeClass: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30' },
-  { key: 'WATCH_6M', label: 'Watch · 120–180 days', hint: 'Expires within 6 months', badgeClass: 'bg-sky-500/15 text-sky-700 dark:text-sky-400 border border-sky-500/30' },
+  // WARNING is days 30–119: the old "30–120 days" label was off by
+  // one — day 120 is already WATCH (QA audit L8).
+  { key: 'WARNING_4M', label: 'Warning · 30–119 days', hint: 'Expires in 30–119 days', badgeClass: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30' },
+  { key: 'WATCH_6M', label: 'Watch · 120–180 days', hint: 'Expires in 120–180 days', badgeClass: 'bg-sky-500/15 text-sky-700 dark:text-sky-400 border border-sky-500/30' },
   { key: 'HEALTHY', label: 'Healthy · over 180 days', hint: 'More than 6 months left', badgeClass: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30' },
 ]
 
@@ -51,12 +53,13 @@ const STOCK_LABEL: Record<StockStatus, string> = {
 }
 
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+  // Expiry dates are bare YYYY-MM-DD: local calendar components.
+  return formatShortDate(dateStr)
+}
+
+function formatTimestamp(dateStr: string | null): string {
+  // Full timestamps (e.g. last order): the PKT calendar date.
+  return formatShortDatePKT(dateStr)
 }
 
 function formatDaysLeft(daysLeft: number): string {
@@ -66,7 +69,7 @@ function formatDaysLeft(daysLeft: number): string {
   return `${daysLeft} days left`
 }
 
-function CountCard({ label, value, hint, tone }: { label: string; value: number; hint: string; tone?: 'danger' | 'warn' | 'ok' }) {
+function CountCard({ label, value, hint, tone }: { label: string; value: number | string; hint: string; tone?: 'danger' | 'warn' | 'ok' }) {
   return (
     <Card className={cn('border-border/70 shadow-xs', tone === 'danger' && 'border-destructive/40 bg-destructive/5', tone === 'warn' && 'border-amber-500/40 bg-amber-500/5')}>
       <CardContent className="pt-4 pb-4">
@@ -78,25 +81,43 @@ function CountCard({ label, value, hint, tone }: { label: string; value: number;
   )
 }
 
-export function RadarsClient({
-  expiry,
-  stock,
-  inventory,
-  vendors,
-}: {
-  expiry: ExpiryRadar
-  stock: StockRadar
-  inventory: InventoryRadar
-  vendors: VendorsRadar
-}) {
-  const [tab, setTab] = useState<Tab>('expiry')
+/** Error state for one failed radar tab (M4): the message plus a
+ * retry that re-runs the server loader. */
+function RadarError({ title, message }: { title: string; message: string }) {
+  const router = useRouter()
+  return (
+    <Card className="border-destructive/40">
+      <CardHeader>
+        <CardTitle>{title} could not be loaded</CardTitle>
+        <CardDescription>{message}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button variant="outline" size="sm" onClick={() => router.refresh()}>
+          Retry
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
 
+export function RadarsClient({ bundle }: { bundle: RadarsBundle }) {
+  const [tab, setTab] = useState<Tab>('expiry')
+  const { expiry, expiryError, stock, stockError, inventory, inventoryError, vendors, vendorsError } = bundle
+
+  // Tab badge meanings (L8), one rule each: the count is the tab's
+  // headline alert count — expiring within 180 days, out-of-stock
+  // + low, products with negative stock, vendors with an overdue PO.
   const tabs: { key: Tab; label: string; count: number }[] = [
-    { key: 'expiry', label: 'Expiry', count: expiry.expiringWithin180Days },
-    { key: 'stock', label: 'Stock', count: stock.counts.OUT_OF_STOCK + stock.counts.LOW },
-    { key: 'inventory', label: 'Inventory', count: inventory.negativeStock.length },
-    { key: 'vendors', label: 'Vendors', count: vendors.vendorsWithOverdue },
+    { key: 'expiry', label: 'Expiry', count: expiry?.expiringWithin180Days ?? 0 },
+    { key: 'stock', label: 'Stock', count: (stock?.counts.OUT_OF_STOCK ?? 0) + (stock?.counts.LOW ?? 0) },
+    { key: 'inventory', label: 'Inventory', count: inventory?.negativeStock.length ?? 0 },
+    { key: 'vendors', label: 'Vendors', count: vendors?.vendorsWithOverdue ?? 0 },
   ]
+
+  // The expiry table lists only batches expiring within 180 days
+  // (L8): HEALTHY batches are counted in the cards above, not
+  // listed under a "within 180 days" heading.
+  const expiringBatches = (expiry?.batches ?? []).filter((b) => b.band !== 'HEALTHY')
 
   return (
     <div className="space-y-6">
@@ -129,7 +150,9 @@ export function RadarsClient({
         ))}
       </div>
 
-      {tab === 'expiry' && (
+      {tab === 'expiry' && (expiryError || !expiry ? (
+        <RadarError title="Expiry radar" message={expiryError || 'No expiry data was returned.'} />
+      ) : (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {EXPIRY_BANDS.map((band) => (
@@ -163,14 +186,16 @@ export function RadarsClient({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {expiry.batches.length === 0 && (
+                  {expiringBatches.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                        No batches with stock on hand.
+                        {expiry.totalBatchesWithStock === 0
+                          ? 'No batches with stock on hand.'
+                          : 'No batches expiring within 180 days. All stocked batches are healthy.'}
                       </TableCell>
                     </TableRow>
                   )}
-                  {expiry.batches.map((batch) => (
+                  {expiringBatches.map((batch) => (
                     <TableRow key={batch.id}>
                       <TableCell className="font-medium">{batch.product_name}</TableCell>
                       <TableCell className="font-mono text-xs">{batch.batch_number}</TableCell>
@@ -189,9 +214,11 @@ export function RadarsClient({
             </CardContent>
           </Card>
         </div>
-      )}
+      ))}
 
-      {tab === 'stock' && (
+      {tab === 'stock' && (stockError || !stock ? (
+        <RadarError title="Stock radar" message={stockError || 'No stock data was returned.'} />
+      ) : (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-3">
             <CountCard label="Out of Stock" value={stock.counts.OUT_OF_STOCK} hint="No stock on hand" tone="danger" />
@@ -203,7 +230,7 @@ export function RadarsClient({
             <CardHeader>
               <CardTitle>Stock Levels</CardTitle>
               <CardDescription>
-                Current stock is the sum of all inventory movements per product. Low means at or below the product&apos;s minimum stock level (10 if none is set).
+                Current stock is the sum of all inventory movements per product. Low means at or below the product&apos;s minimum stock level — 10 when no minimum is set (a stored 0 counts as unset).
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -243,14 +270,16 @@ export function RadarsClient({
             </CardContent>
           </Card>
         </div>
-      )}
+      ))}
 
-      {tab === 'inventory' && (
+      {tab === 'inventory' && (inventoryError || !inventory ? (
+        <RadarError title="Inventory radar" message={inventoryError || 'No inventory data was returned.'} />
+      ) : (
         <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Movements by Type</CardTitle>
-              <CardDescription>Last 30 days, with the last 7 days alongside. Quantities are signed as stored: stock-out and wastage are negative.</CardDescription>
+              <CardDescription>Last 30 days, with the last 7 days alongside. Quantities are signed as stored: stock-out and wastage are negative. Total Qty is the signed net; In / Out split it.</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
@@ -259,6 +288,8 @@ export function RadarsClient({
                     <TableHead>Movement Type</TableHead>
                     <TableHead>Count · 30 days</TableHead>
                     <TableHead>Total Qty · 30 days</TableHead>
+                    <TableHead>In · 30 days</TableHead>
+                    <TableHead>Out · 30 days</TableHead>
                     <TableHead>Count · 7 days</TableHead>
                     <TableHead>Total Qty · 7 days</TableHead>
                   </TableRow>
@@ -269,6 +300,8 @@ export function RadarsClient({
                       <TableCell className="font-medium">{row.movement_type.replace('_', ' ')}</TableCell>
                       <TableCell>{row.count30d}</TableCell>
                       <TableCell className="font-semibold">{row.totalQuantity30d}</TableCell>
+                      <TableCell>{row.inQuantity30d}</TableCell>
+                      <TableCell>{row.outQuantity30d}</TableCell>
                       <TableCell>{row.count7d}</TableCell>
                       <TableCell className="font-semibold">{row.totalQuantity7d}</TableCell>
                     </TableRow>
@@ -281,7 +314,7 @@ export function RadarsClient({
           <Card>
             <CardHeader>
               <CardTitle>Top Movers · Last 30 Days</CardTitle>
-              <CardDescription>Products with the most units moved (in or out), by absolute quantity.</CardDescription>
+              <CardDescription>Products with the most units moved (in or out), by absolute quantity — split into units moved in and out.</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
@@ -291,12 +324,14 @@ export function RadarsClient({
                     <TableHead>SKU</TableHead>
                     <TableHead>Movements</TableHead>
                     <TableHead>Total Units Moved</TableHead>
+                    <TableHead>In</TableHead>
+                    <TableHead>Out</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {inventory.topMovers.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                         No movements in the last 30 days.
                       </TableCell>
                     </TableRow>
@@ -307,6 +342,8 @@ export function RadarsClient({
                       <TableCell>{mover.sku || '-'}</TableCell>
                       <TableCell>{mover.movements}</TableCell>
                       <TableCell className="font-semibold">{mover.totalQuantity}</TableCell>
+                      <TableCell>{mover.inQuantity}</TableCell>
+                      <TableCell>{mover.outQuantity}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -347,22 +384,25 @@ export function RadarsClient({
             </CardContent>
           </Card>
         </div>
-      )}
+      ))}
 
-      {tab === 'vendors' && (
+      {tab === 'vendors' && (vendorsError || !vendors ? (
+        <RadarError title="Vendors radar" message={vendorsError || 'No vendor data was returned.'} />
+      ) : (
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <CountCard label="Total Vendors" value={vendors.totalVendors} hint="Suppliers on record" />
             <CountCard label="Active Vendors" value={vendors.activeVendors} hint="Marked active" tone="ok" />
             <CountCard label="Pending POs" value={vendors.totalPendingPOs} hint="Purchase orders not yet received" tone={vendors.totalPendingPOs > 0 ? 'warn' : undefined} />
             <CountCard label="Vendors with Overdue POs" value={vendors.vendorsWithOverdue} hint="Pending PO older than 30 days" tone={vendors.vendorsWithOverdue > 0 ? 'danger' : undefined} />
+            <CountCard label="Outstanding PO Amount" value={formatPKR(vendors.totalOutstandingPayable)} hint="Value of goods ordered but not yet received" tone={vendors.totalOutstandingPayable > 0 ? 'warn' : undefined} />
           </div>
 
           <Card>
             <CardHeader>
               <CardTitle>Vendors &amp; Purchase Orders</CardTitle>
               <CardDescription>
-                Pending means a purchase order that has not been received yet. Overdue means a pending order older than 30 days.
+                Pending means a purchase order that has not been received yet. Overdue means a pending order older than 30 days. Outstanding is the value of goods ordered but not yet received.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -375,13 +415,14 @@ export function RadarsClient({
                     <TableHead>Total POs</TableHead>
                     <TableHead>Pending POs</TableHead>
                     <TableHead>Overdue POs</TableHead>
+                    <TableHead className="text-right">Outstanding (PKR)</TableHead>
                     <TableHead>Last Order</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {vendors.vendors.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                         No vendors found. Add vendors from the Purchases page.
                       </TableCell>
                     </TableRow>
@@ -405,11 +446,17 @@ export function RadarsClient({
                           <span className="text-muted-foreground">0</span>
                         )}
                       </TableCell>
-                      <TableCell>{formatDate(vendor.last_order_date)}</TableCell>
+                      <TableCell className="text-right font-medium">{formatPKR(vendor.outstandingPayable)}</TableCell>
+                      <TableCell>{formatTimestamp(vendor.last_order_date)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+              {vendors.unknownStatusPOs > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-4">
+                  {vendors.unknownStatusPOs} purchase order{vendors.unknownStatusPOs === 1 ? '' : 's'} {vendors.unknownStatusPOs === 1 ? 'has' : 'have'} an unrecognized status and {vendors.unknownStatusPOs === 1 ? 'is' : 'are'} counted as pending.
+                </p>
+              )}
               <p className="text-xs text-muted-foreground mt-4">
                 Manage vendors and orders on the{' '}
                 <Link href="/purchases/vendors" className="text-primary underline underline-offset-2">Vendors page</Link>
@@ -419,7 +466,7 @@ export function RadarsClient({
             </CardContent>
           </Card>
         </div>
-      )}
+      ))}
     </div>
   )
 }

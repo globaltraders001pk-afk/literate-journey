@@ -11,6 +11,7 @@ import {
 import type {
   BatchRow,
   ExpiryRadar,
+  PurchaseOrderItemRow,
   PurchaseOrderRow,
   StockLevelRow,
   StockRadar,
@@ -74,6 +75,12 @@ export interface MovementTypeSummary {
   totalQuantity30d: number
   count7d: number
   totalQuantity7d: number
+  /** In/out split of the totals above (M7): "in" is the sum of
+   * positive quantities, "out" the absolute sum of negative ones. */
+  inQuantity30d: number
+  outQuantity30d: number
+  inQuantity7d: number
+  outQuantity7d: number
 }
 
 export interface TopMover {
@@ -82,6 +89,10 @@ export interface TopMover {
   sku: string | null
   movements: number
   totalQuantity: number
+  /** In/out split of totalQuantity (M7): in = units moved in,
+   * out = units moved out, both non-negative. */
+  inQuantity: number
+  outQuantity: number
 }
 
 export interface InventoryRadar {
@@ -143,8 +154,11 @@ export async function getStockRadar(): Promise<StockRadar> {
 export async function getInventoryRadar(
   // A caller that already computed the stock radar (the /radars
   // bundle) passes it in, so stock is computed once per request
-  // instead of once here and once for the Stock tab (M8).
-  stockRadar?: StockRadar
+  // instead of once here and once for the Stock tab (M8). Pass
+  // null explicitly when the stock fetch already failed: the
+  // movement tables still render, only the negative-stock anomaly
+  // list is skipped instead of re-fetching stock and throwing.
+  stockRadar?: StockRadar | null
 ): Promise<InventoryRadar> {
   const profile = await requireRadarAccess()
   const supabase = await createClient()
@@ -174,9 +188,22 @@ export async function getInventoryRadar(
   const movements = (data || []) as MovementRow[]
   const types: MovementType[] = ['STOCK_IN', 'STOCK_OUT', 'WASTAGE', 'RETURN', 'ADJUSTMENT']
 
+  // SIGN CONVENTION (M7), one for the whole tab: quantities are
+  // stored signed — STOCK_IN / RETURN positive, STOCK_OUT /
+  // WASTAGE negative — and "Total Qty" is the SIGNED net, matching
+  // the ledger. "Top Movers" rank by ABSOLUTE units moved (in or
+  // out) and split into in/out columns, so a product with heavy
+  // two-way traffic is not hidden by a near-zero net.
+  const split = (rows: MovementRow[]) => ({
+    inQty: rows.reduce((sum, m) => sum + Math.max(0, Number(m.quantity) || 0), 0),
+    outQty: rows.reduce((sum, m) => sum + Math.abs(Math.min(0, Number(m.quantity) || 0)), 0),
+  })
+
   const byType: MovementTypeSummary[] = types.map((movement_type) => {
     const inWindow = movements.filter((m) => m.movement_type === movement_type)
     const inWeek = inWindow.filter((m) => new Date(m.created_at) >= sevenDaysAgo)
+    const windowSplit = split(inWindow)
+    const weekSplit = split(inWeek)
     return {
       movement_type,
       count30d: inWindow.length,
@@ -185,6 +212,10 @@ export async function getInventoryRadar(
       totalQuantity30d: inWindow.reduce((sum, m) => sum + (Number(m.quantity) || 0), 0),
       count7d: inWeek.length,
       totalQuantity7d: inWeek.reduce((sum, m) => sum + (Number(m.quantity) || 0), 0),
+      inQuantity30d: windowSplit.inQty,
+      outQuantity30d: windowSplit.outQty,
+      inQuantity7d: weekSplit.inQty,
+      outQuantity7d: weekSplit.outQty,
     }
   })
 
@@ -201,19 +232,26 @@ export async function getInventoryRadar(
         sku: prod?.sku ?? null,
         movements: 0,
         totalQuantity: 0,
+        inQuantity: 0,
+        outQuantity: 0,
       })
     }
     const entry = moverMap.get(key)!
+    const qty = Number(m.quantity) || 0
     entry.movements += 1
-    entry.totalQuantity += Math.abs(Number(m.quantity) || 0)
+    entry.totalQuantity += Math.abs(qty)
+    if (qty >= 0) entry.inQuantity += qty
+    else entry.outQuantity += Math.abs(qty)
   })
   const topMovers = Array.from(moverMap.values())
     .sort((a, b) => b.totalQuantity - a.totalQuantity)
     .slice(0, 10)
 
   // Anomaly: computed stock below zero (same stock method as getStockLevels).
-  const resolvedStockRadar = stockRadar ?? (await getStockRadar())
-  const negativeStock = resolvedStockRadar.products.filter((p) => p.current_stock < 0)
+  const resolvedStockRadar = stockRadar === null ? null : (stockRadar ?? (await getStockRadar()))
+  const negativeStock = resolvedStockRadar
+    ? resolvedStockRadar.products.filter((p) => p.current_stock < 0)
+    : []
 
   return { byType, topMovers, negativeStock }
 }
@@ -222,48 +260,11 @@ export async function getVendorsRadar(): Promise<VendorsRadar> {
   const profile = await requireRadarAccess()
   const supabase = await createClient()
 
-  const [{ data: vendors, error: vendorError }, { data: pos, error: poError }] =
-    await Promise.all([
-      supabase
-        .from('vendors')
-        .select('id, name, contact_person, phone, email, is_active')
-        .eq('organization_id', profile.organization_id)
-        .order('name', { ascending: true }),
-      supabase
-        .from('purchase_orders')
-        .select('id, vendor_id, status, created_at, total_amount')
-        .eq('organization_id', profile.organization_id)
-        .order('created_at', { ascending: false }),
-    ])
-
-  if (vendorError) throw new Error(vendorError.message)
-  if (poError) throw new Error(poError.message)
-
-  return buildVendorsRadar(
-    (vendors || []) as VendorRow[],
-    (pos || []) as PurchaseOrderRow[]
-  )
-}
-
-export interface RadarsBundle {
-  expiry: ExpiryRadar
-  stock: StockRadar
-  inventory: InventoryRadar
-  vendors: VendorsRadar
-}
-
-export async function getRadarsBundle(): Promise<RadarsBundle> {
-  const profile = await requireRadarAccess()
-  const supabase = await createClient()
-
   const [
-    { rows: allBatches },
-    stockLevels,
     { data: vendors, error: vendorError },
     { data: pos, error: poError },
+    poItems,
   ] = await Promise.all([
-    getBatches(profile.organization_id, { limit: 5000 }),
-    getStockLevels(),
     supabase
       .from('vendors')
       .select('id, name, contact_person, phone, email, is_active')
@@ -274,23 +275,153 @@ export async function getRadarsBundle(): Promise<RadarsBundle> {
       .select('id, vendor_id, status, created_at, total_amount')
       .eq('organization_id', profile.organization_id)
       .order('created_at', { ascending: false }),
+    getPurchaseOrderItems(supabase, profile.organization_id),
   ])
 
   if (vendorError) throw new Error(vendorError.message)
   if (poError) throw new Error(poError.message)
 
-  const expiry = buildExpiryRadar((allBatches || []) as BatchRow[])
-  const stock = buildStockRadar(stockLevels)
+  return buildVendorsRadar(
+    (vendors || []) as VendorRow[],
+    (pos || []) as PurchaseOrderRow[],
+    poItems
+  )
+}
+
+// PO lines for the vendors payable math (M6). purchase_order_items
+// has no organization_id of its own, so it is scoped through its
+// parent PO (inner join, same pattern as the sale_items queries).
+async function getPurchaseOrderItems(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string
+): Promise<PurchaseOrderItemRow[]> {
+  const { data, error } = await supabase
+    .from('purchase_order_items')
+    .select('po_id, quantity, unit_price, received_quantity, purchase_orders!inner(organization_id)')
+    .eq('purchase_orders.organization_id', orgId)
+
+  if (error) throw new Error(error.message)
+  return (data || []) as PurchaseOrderItemRow[]
+}
+
+// Empty radar results: the per-radar fallback when one leg of a
+// summary fails (M4) — the strip shows zeros for that radar
+// instead of taking the whole dashboard down with it.
+const EMPTY_EXPIRY_RADAR: ExpiryRadar = {
+  counts: { EXPIRED: 0, URGENT: 0, WARNING_4M: 0, WATCH_6M: 0, HEALTHY: 0 },
+  expiringWithin180Days: 0,
+  totalBatchesWithStock: 0,
+  batches: [],
+}
+
+const EMPTY_STOCK_RADAR: StockRadar = {
+  counts: { OUT_OF_STOCK: 0, LOW: 0, HEALTHY: 0 },
+  products: [],
+}
+
+const EMPTY_VENDORS_RADAR: VendorsRadar = {
+  totalVendors: 0,
+  activeVendors: 0,
+  totalPendingPOs: 0,
+  vendorsWithOverdue: 0,
+  totalOutstandingPayable: 0,
+  unknownStatusPOs: 0,
+  vendors: [],
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'Failed to load.'
+}
+
+export interface RadarsBundle {
+  expiry: ExpiryRadar | null
+  expiryError: string | null
+  stock: StockRadar | null
+  stockError: string | null
+  inventory: InventoryRadar | null
+  inventoryError: string | null
+  vendors: VendorsRadar | null
+  vendorsError: string | null
+}
+
+export async function getRadarsBundle(): Promise<RadarsBundle> {
+  const profile = await requireRadarAccess()
+  const supabase = await createClient()
+
+  // One radar failing must not kill the other three (M4): every
+  // leg settles on its own, and the page renders an error state
+  // with retry for the failed tab only. Only the auth gate above
+  // still throws (an unauthorized caller gets no radar at all).
+  const [batchesRes, stockRes, vendorsRes, posRes, poItemsRes] =
+    await Promise.allSettled([
+      getBatches(profile.organization_id, { limit: 5000 }),
+      getStockLevels(),
+      supabase
+        .from('vendors')
+        .select('id, name, contact_person, phone, email, is_active')
+        .eq('organization_id', profile.organization_id)
+        .order('name', { ascending: true }),
+      supabase
+        .from('purchase_orders')
+        .select('id, vendor_id, status, created_at, total_amount')
+        .eq('organization_id', profile.organization_id)
+        .order('created_at', { ascending: false }),
+      getPurchaseOrderItems(supabase, profile.organization_id),
+    ])
+
+  let expiry: ExpiryRadar | null = null
+  let expiryError: string | null = null
+  if (batchesRes.status === 'fulfilled') {
+    expiry = buildExpiryRadar((batchesRes.value.rows || []) as BatchRow[])
+  } else {
+    expiryError = errorMessage(batchesRes.reason)
+  }
+
+  let stock: StockRadar | null = null
+  let stockError: string | null = null
+  if (stockRes.status === 'fulfilled') {
+    stock = buildStockRadar(stockRes.value)
+  } else {
+    stockError = errorMessage(stockRes.reason)
+  }
+
+  let vendors: VendorsRadar | null = null
+  let vendorsError: string | null = null
+  if (
+    vendorsRes.status === 'fulfilled' &&
+    posRes.status === 'fulfilled' &&
+    poItemsRes.status === 'fulfilled'
+  ) {
+    if (vendorsRes.value.error) vendorsError = vendorsRes.value.error.message
+    else if (posRes.value.error) vendorsError = posRes.value.error.message
+    else {
+      vendors = buildVendorsRadar(
+        (vendorsRes.value.data || []) as VendorRow[],
+        (posRes.value.data || []) as PurchaseOrderRow[],
+        poItemsRes.value
+      )
+    }
+  } else {
+    const failed = [vendorsRes, posRes, poItemsRes].find((r) => r.status === 'rejected')
+    vendorsError =
+      failed && failed.status === 'rejected'
+        ? errorMessage(failed.reason)
+        : 'Failed to load vendors.'
+  }
+
   // Inventory reuses the stock radar computed above (its only
   // stock use is the negative-stock list) instead of fetching
-  // stock a second time.
-  const inventory = await getInventoryRadar(stock)
-  const vendorsRadar = buildVendorsRadar(
-    (vendors || []) as VendorRow[],
-    (pos || []) as PurchaseOrderRow[]
-  )
+  // stock a second time. A null stock radar means "skip the
+  // anomaly list", not "fail the tab".
+  let inventory: InventoryRadar | null = null
+  let inventoryError: string | null = null
+  try {
+    inventory = await getInventoryRadar(stock)
+  } catch (err) {
+    inventoryError = errorMessage(err)
+  }
 
-  return { expiry, stock, inventory, vendors: vendorsRadar }
+  return { expiry, expiryError, stock, stockError, inventory, inventoryError, vendors, vendorsError }
 }
 
 // Compact numbers for the alert strip on /dashboard. Reuses the three
@@ -301,6 +432,10 @@ export async function getRadarsBundle(): Promise<RadarsBundle> {
 // Callers that already hold stock levels / batches (the dashboard,
 // which fetched both for its own cards) pass them in, so the
 // summary does not fetch the same datasets a second time (M8).
+//
+// One radar failing must not kill the strip (M4): the legs settle
+// independently with per-radar fallbacks (empty counts), so a
+// failed vendors query, say, still leaves the expiry numbers up.
 export async function getRadarSummary(precomputed?: {
   stockLevels?: StockLevelRow[]
   batches?: BatchRow[]
@@ -308,11 +443,11 @@ export async function getRadarSummary(precomputed?: {
   const profile = await requireRadarAccess()
   const supabase = await createClient()
 
-  const stockLevels = precomputed?.stockLevels ?? (await getStockLevels())
-  const stock = buildStockRadar(stockLevels)
-
-  const [{ rows: allBatches }, { data: vendors, error: vendorError }, { data: pos, error: poError }] =
-    await Promise.all([
+  const [stockRes, batchesRes, vendorsRes, posRes, poItemsRes] =
+    await Promise.allSettled([
+      precomputed?.stockLevels
+        ? Promise.resolve(precomputed.stockLevels)
+        : getStockLevels(),
       precomputed?.batches
         ? Promise.resolve({ rows: precomputed.batches })
         : getBatches(profile.organization_id, { limit: 5000 }),
@@ -326,16 +461,27 @@ export async function getRadarSummary(precomputed?: {
         .select('id, vendor_id, status, created_at, total_amount')
         .eq('organization_id', profile.organization_id)
         .order('created_at', { ascending: false }),
+      getPurchaseOrderItems(supabase, profile.organization_id),
     ])
 
-  if (vendorError) throw new Error(vendorError.message)
-  if (poError) throw new Error(poError.message)
-
-  const expiry = buildExpiryRadar((allBatches || []) as BatchRow[])
-  const vendorsRadar = buildVendorsRadar(
-    (vendors || []) as VendorRow[],
-    (pos || []) as PurchaseOrderRow[]
-  )
+  const stock =
+    stockRes.status === 'fulfilled' ? buildStockRadar(stockRes.value) : EMPTY_STOCK_RADAR
+  const expiry =
+    batchesRes.status === 'fulfilled'
+      ? buildExpiryRadar((batchesRes.value.rows || []) as BatchRow[])
+      : EMPTY_EXPIRY_RADAR
+  const vendorsRadar =
+    vendorsRes.status === 'fulfilled' &&
+    posRes.status === 'fulfilled' &&
+    poItemsRes.status === 'fulfilled' &&
+    !vendorsRes.value.error &&
+    !posRes.value.error
+      ? buildVendorsRadar(
+          (vendorsRes.value.data || []) as VendorRow[],
+          (posRes.value.data || []) as PurchaseOrderRow[],
+          poItemsRes.value
+        )
+      : EMPTY_VENDORS_RADAR
 
   return {
     expiringWithin180Days: expiry.expiringWithin180Days,
