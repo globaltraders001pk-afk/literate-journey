@@ -9,7 +9,7 @@ export interface ChatMessage {
     action: string
     details: string
     success: boolean
-    data?: any
+    data?: Record<string, unknown>
   }[]
 }
 
@@ -23,103 +23,24 @@ export interface ChatSession {
 
 const STORAGE_KEY = 'qurbat_ai_chat_sessions'
 
-const DEFAULT_SESSIONS: ChatSession[] = [
-  {
-    id: 'sample-session-1',
-    title: 'Inventory & Stock Audit',
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    messages: [
-      {
-        id: 's1-m1',
-        role: 'user',
-        content: 'Check low stock items and expiring batches',
-        timestamp: '09:15 PM'
-      },
-      {
-        id: 's1-m2',
-        role: 'assistant',
-        content: 'I checked your live inventory database. Found 2 items requiring attention:\n- **Smoked Cheddar**: 6 units remaining (Reorder threshold: 10)\n- **Almond Milk**: 4 units remaining (Reorder threshold: 8)',
-        timestamp: '09:15 PM',
-        actions: [
-          {
-            action: 'CHECK_STOCK_LEVELS',
-            details: 'Audited 24 inventory items across Dairy & Beverage categories.',
-            success: true
-          }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'sample-session-2',
-    title: 'Daily Staff Attendance',
-    createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-    messages: [
-      {
-        id: 's2-m1',
-        role: 'user',
-        content: 'Show attendance report for active shift today',
-        timestamp: '06:30 PM'
-      },
-      {
-        id: 's2-m2',
-        role: 'assistant',
-        content: 'All scheduled staff members are checked in for today’s evening shift. No unexcused absences recorded.',
-        timestamp: '06:30 PM',
-        actions: [
-          {
-            action: 'GET_ATTENDANCE_SUMMARY',
-            details: 'Fetched attendance logs for 8 active staff members.',
-            success: true
-          }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'sample-session-3',
-    title: 'Operational Expenses Review',
-    createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-    updatedAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-    messages: [
-      {
-        id: 's3-m1',
-        role: 'user',
-        content: 'Summarize our operational expenses this month',
-        timestamp: 'Yesterday'
-      },
-      {
-        id: 's3-m2',
-        role: 'assistant',
-        content: 'Total operational expenses recorded this month: **Rs 342,000.00** across Utilities, Kitchen Supplies, and Maintenance.',
-        timestamp: 'Yesterday',
-        actions: [
-          {
-            action: 'GET_EXPENSES_SUMMARY',
-            details: 'Aggregated expenses across 14 ledger entries.',
-            success: true
-          }
-        ]
-      }
-    ]
-  }
-]
+// No seeded sessions (QA audit fix-priority #10): the old code
+// shipped three fake "sample" conversations with invented stock
+// counts, attendance figures and a made-up Rs 342,000 expense
+// total, presented as if they were real history. A fresh browser
+// starts with an empty chat list; real sessions are only the
+// ones the owner actually has.
 
 export function getChatSessions(): ChatSession[] {
   if (typeof window === 'undefined') return []
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) {
-      // Seed default starter sessions
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_SESSIONS))
-      return DEFAULT_SESSIONS
+      return []
     }
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : DEFAULT_SESSIONS
+    return Array.isArray(parsed) ? parsed : []
   } catch {
-    return DEFAULT_SESSIONS
+    return []
   }
 }
 
