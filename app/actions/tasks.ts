@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserProfile, checkAccess } from '@/lib/auth-utils'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { revalidatePath } from 'next/cache'
+import { normalizePageOptions, type PageOptions } from '@/lib/pagination'
 
 // Task statuses used anywhere in the app: the task page select
 // (pending / in_progress / completed), the AI tool description,
@@ -11,9 +12,10 @@ import { revalidatePath } from 'next/cache'
 // Anything else is rejected, never stored raw.
 const TASK_STATUSES = ['pending', 'in_progress', 'completed', 'DONE']
 
-export async function getTasks() {
+export async function getTasks(options?: PageOptions) {
   const profile = await getUserProfile()
-  if (!profile) return []
+  if (!profile) return { rows: [], total: 0, limit: 0, offset: 0 }
+  const { limit, offset } = normalizePageOptions(options)
 
   const supabase = await createClient()
 
@@ -23,20 +25,21 @@ export async function getTasks() {
       *,
       assigned_to_profile:profiles!tasks_assigned_to_fkey(id, full_name, email),
       created_by_profile:profiles!tasks_created_by_fkey(id, full_name)
-    `)
+    `, { count: 'exact' })
     .eq('organization_id', profile.organization_id)
     .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1)
 
   if (profile.role === 'employee') {
     query = query.eq('assigned_to', profile.id)
   }
 
-  const { data, error } = await query
+  const { data, error, count } = await query
   if (error) {
     console.error('Error fetching tasks:', error)
-    return []
+    return { rows: [], total: 0, limit, offset }
   }
-  return data || []
+  return { rows: data ?? [], total: count ?? 0, limit, offset }
 }
 
 export async function getAssignees() {

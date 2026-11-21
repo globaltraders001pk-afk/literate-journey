@@ -4,19 +4,22 @@ import { createClient } from '@/lib/supabase/server'
 import { checkAccess, getUserProfile } from '@/lib/auth-utils'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { revalidatePath } from 'next/cache'
+import { normalizePageOptions, type PageOptions } from '@/lib/pagination'
 
-export async function getVendors() {
+export async function getVendors(options?: PageOptions) {
   const profile = await getUserProfile()
-  if (!profile) return []
+  if (!profile) return { rows: [], total: 0, limit: 0, offset: 0 }
+  const { limit, offset } = normalizePageOptions(options)
   const supabase = await createClient()
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from('vendors')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('organization_id', profile.organization_id)
     .order('name', { ascending: true })
-  
+    .range(offset, offset + limit - 1)
+
   if (error) throw new Error(error.message)
-  return data
+  return { rows: data ?? [], total: count ?? 0, limit, offset }
 }
 
 export async function createVendor(formData: FormData) {

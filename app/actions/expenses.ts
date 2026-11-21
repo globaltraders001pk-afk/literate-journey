@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { checkAccess, getUserProfile } from '@/lib/auth-utils'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
+import { emptyToUndefined, expenseSchema, firstZodError } from '@/lib/validation'
+import { normalizePageOptions, type PageOptions } from '@/lib/pagination'
 
 export async function getExpenseCategories() {
   const profile = await getUserProfile()
@@ -89,35 +91,41 @@ export async function deleteExpenseCategory(id: string) {
   return { success: true }
 }
 
-export async function getExpenses() {
+export async function getExpenses(options?: PageOptions) {
   const profile = await getUserProfile()
-  if (!profile) return []
+  if (!profile) return { rows: [], total: 0, limit: 0, offset: 0 }
+  const { limit, offset } = normalizePageOptions(options)
   const supabase = await createClient()
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from('expenses')
     .select(`
       *,
       expense_categories(name),
       profiles(full_name)
-    `)
+    `, { count: 'exact' })
     .eq('organization_id', profile.organization_id)
     .order('expense_date', { ascending: false })
     .order('created_at', { ascending: false })
-  
+    .range(offset, offset + limit - 1)
+
   if (error) throw new Error(error.message)
-  return data
+  return { rows: data ?? [], total: count ?? 0, limit, offset }
 }
 
 export async function createExpense(formData: FormData) {
   try { await checkAccess(['admin', 'owner']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
 
-  const category_id = formData.get('category_id') as string
-  const amount = parseFloat(formData.get('amount') as string)
-  const expense_date = formData.get('expense_date') as string
-  const reference_number = formData.get('reference_number') as string
-  const notes = formData.get('notes') as string
-
-  if (!category_id || !amount || !expense_date) return { error: 'Required fields missing' }
+  // A negative amount used to pass: `!amount` is false for -5.
+  // zod rejects negatives, NaN and non-numbers up front.
+  const parsed = expenseSchema.safeParse({
+    category_id: formData.get('category_id'),
+    amount: Number(formData.get('amount')),
+    expense_date: formData.get('expense_date'),
+    reference_number: emptyToUndefined(formData.get('reference_number')),
+    notes: emptyToUndefined(formData.get('notes')),
+  })
+  if (!parsed.success) return { error: firstZodError(parsed) }
+  const { category_id, amount, expense_date, reference_number, notes } = parsed.data
 
   const supabase = await createClient()
   const { data: userData } = await supabase.auth.getUser()

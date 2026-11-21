@@ -5,18 +5,19 @@ import { revalidatePath } from 'next/cache'
 
 import { checkAccess, getUserProfile } from '@/lib/auth-utils'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
-
-function validatePeriod(month: number, year: number): string | null {
-  if (!Number.isInteger(month) || month < 1 || month > 12) return 'Month must be between 1 and 12'
-  if (!Number.isInteger(year) || year < 2000 || year > 2100) return 'Year must be between 2000 and 2100'
-  return null
-}
+import {
+  firstZodError,
+  payrollGenerateSchema,
+  payrollPaySchema,
+} from '@/lib/validation'
 
 export async function generatePayroll(month: number, year: number) {
   try { await checkAccess(['admin', 'owner']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
 
-  const periodError = validatePeriod(month, year)
-  if (periodError) return { error: periodError }
+  const parsed = payrollGenerateSchema.safeParse({ month, year })
+  if (!parsed.success) return { error: firstZodError(parsed) }
+  month = parsed.data.month
+  year = parsed.data.year
 
   const supabase = await createClient()
   const { data: userData } = await supabase.auth.getUser()
@@ -106,7 +107,9 @@ export async function getPayroll(month: number, year: number) {
 export async function payPayroll(payrollId: string) {
   try { await checkAccess(['admin', 'owner']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
 
-  if (!payrollId) return { error: 'Payroll record is required' }
+  const parsed = payrollPaySchema.safeParse({ payrollId })
+  if (!parsed.success) return { error: firstZodError(parsed) }
+  payrollId = parsed.data.payrollId
 
   const supabase = await createClient()
   const { data: userData } = await supabase.auth.getUser()
