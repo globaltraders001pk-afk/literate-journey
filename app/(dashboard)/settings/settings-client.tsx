@@ -1039,7 +1039,7 @@ export function SettingsClient({
                   <Input
                     id="dispatch_text"
                     name="dispatch_text"
-                    placeholder="Local Courier / Hand Delivery"
+                    placeholder="Dispatch method (optional)"
                     defaultValue={organization?.dispatch_text || ''}
                   />
                 </div>
