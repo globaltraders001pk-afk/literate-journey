@@ -2,8 +2,8 @@
 
 **Repo:** `github.com/muhammad-araf/pos-system-aiagent` (package `qurbat-erp`)
 **Built:** 2026-11-16 · **Pushed:** 2026-11-22 to both remotes (`origin` and
-`globaltraders`) at `9eba2ad` · **Local HEAD:** `7151e93` (Phase 3b — AI chat
-safety, lint, login hardening, docs — in progress, local only, not yet pushed).
+`globaltraders`) at `9eba2ad` · **Local HEAD:** `b67b609` (Phase 3b — AI chat
+safety, lint, login hardening, docs — plus six follow-up fix-ups, local only, not yet pushed).
 **Client:** medical / pharma business (name + email not provided yet). Finance software kept as-is; these two additions only.
 **Deadline:** 2 days, by 2026-11-18.
 
@@ -20,7 +20,7 @@ safety, lint, login hardening, docs — in progress, local only, not yet pushed)
 
 **Thresholds (constants at the top of `radars.ts`):**
 - **Expiry bands** (days left, counted from start of today): `EXPIRED` < 0 · `URGENT` 0–29 days · `WARNING_4M` 30–119 days (4 months) · `WATCH_6M` 120–180 days (6 months) · `HEALTHY` > 180 days. `expiringWithin180Days` counts expired + urgent + warning + watch. Batches with `quantity_remaining <= 0` are excluded.
-- **Stock:** same computation as `getStockLevels` (sum of `inventory_movements.quantity`). `Out of stock` qty ≤ 0 · `Low` 0 < qty ≤ `minimum_stock_level` (the column exists on products) · `Healthy` otherwise. Fallback threshold 10 applies only when `minimum_stock_level` is null — note: `createProduct` stores **0** when unset, so for products with no minimum set, Low never fires (see Pending below).
+- **Stock:** same computation as `getStockLevels` (sum of `inventory_movements.quantity`). Three-way status: `Out of Stock` qty ≤ 0 · `Low` 0 < qty ≤ effective minimum · `In Stock` otherwise. The effective minimum is `minimum_stock_level` when set, else 10 when it is NULL or 0 (`createProduct` stores 0 when unset, so 0 counts as unset). Same rule in `lib/radar-builders.ts` and `public.get_stock_levels()`.
 - **Inventory:** last 30 days + 7-day totals grouped by movement type (STOCK_IN / STOCK_OUT / WASTAGE / RETURN / ADJUSTMENT), top movers by absolute quantity, negative-stock anomaly list.
 - **Vendors:** status from `vendors.is_active`; pending PO = status neither `received` nor `cancelled`; a pending PO older than **30 days** is flagged overdue.
 
@@ -70,7 +70,7 @@ Run it in the Supabase SQL Editor. Until then: saving FBR settings fails with a 
 3. **Client name / logo / email** — not provided yet; logo + org details come from the existing Settings → Organization Information (logo upload already exists).
 4. **Run `fbr-radars-setup.sql`** on the live Supabase DB (see above).
 5. **Live checks (need DB + browser):** `/radars` tabs and counts, dashboard strip per role, POS checkout → FBR Invoice → barcode/print/copy, FBR settings save, second invoice same year confirms the sequence increments.
-6. **Owner decisions (not built):** serial-number race — two simultaneous checkouts can read the same max and duplicate a serial (needs a unique index on `sales(invoice_number)` + retry, or a Postgres sequence); Low-stock rule — products with `minimum_stock_level = 0` (the default) never show Low, so per-product minimums need setting or the fallback rule revisited.
+6. **Owner decisions (not built):** serial-number race — two simultaneous checkouts can read the same max and duplicate a serial (needs a unique index on `sales(invoice_number)` + retry, or a Postgres sequence); Low-stock rule — fixed 2026-11-22: the effective minimum is 10 when `minimum_stock_level` is NULL or 0, so Low now fires for products with no minimum set (see Stock above).
 7. **Not touched (out of scope):** the audit findings in `ANALYSIS.md` (committed API key, RLS, lint baseline) — separate job.
 
 ## Full DB setup — 2026-11-16
