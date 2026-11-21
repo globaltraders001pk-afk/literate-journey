@@ -8,6 +8,8 @@ import { updateProcurementRef } from '@/app/actions/sales'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Printer, Copy, Check, ArrowLeft, FileText, Save } from 'lucide-react'
 import { amountInWords } from '@/lib/amount-in-words'
+import { DEFAULT_GST_RATE, DEFAULT_PAYMENT_TERMS_DAYS } from '@/lib/invoice-constants'
+import { formatDayMonthYearPKT, formatDateTimePKT, addDaysPKT } from '@/lib/dates'
 
 /**
  * FBR invoice view (client) — rebuilt to match the client's sample invoice
@@ -48,6 +50,8 @@ type FbrSale = {
   created_at?: string | null
   payment_method?: string | null
   subtotal?: number | null
+  gst_amount?: number | null
+  grand_total?: number | null
   total_amount?: number | null
   procurement_ref?: string | null
   fbr_status?: string | null
@@ -87,32 +91,18 @@ function round2(n: number) {
   return Math.round(n * 100) / 100
 }
 
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
-
-/** "DD Month YYYY" with a zero-padded day, e.g. "29 September 2026". UTC-based
- * so server and client render the same string (no hydration mismatch). */
+/** "DD Month YYYY" in Asia/Karachi — see lib/dates.ts. Kept as a
+ * thin wrapper so the copy-text builder below keeps its short name. */
 function formatDayMonthYear(value: string | Date | null | undefined) {
-  if (!value) return '—'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '—'
-  return `${String(d.getUTCDate()).padStart(2, '0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+  return formatDayMonthYearPKT(value)
 }
 
 function formatDateTime(value: string | Date | null | undefined) {
-  if (!value) return '[System timestamp]'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '[System timestamp]'
-  return `${formatDayMonthYear(d)}, ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+  return formatDateTimePKT(value)
 }
 
 function addDays(value: string | Date | null | undefined, days: number) {
-  if (!value) return null
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return null
-  return new Date(d.getTime() + days * 24 * 60 * 60 * 1000)
+  return addDaysPKT(value, days)
 }
 
 function paymentTermsLabel(method: string | null | undefined) {
@@ -142,6 +132,11 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
   const [copied, setCopied] = React.useState<string | null>(null)
   const [qrDataUrl, setQrDataUrl] = React.useState<string | null>(null)
   const [qrFailed, setQrFailed] = React.useState(false)
+  // True while the QR is still generating: the QR block shows a
+  // "generating" line (never the placeholder) and Print stays
+  // disabled until it resolves, so a print can never catch the
+  // placeholder instead of the QR (QA audit L9).
+  const [qrPending, setQrPending] = React.useState(false)
   const [procRef, setProcRef] = React.useState<string>(sale?.procurement_ref || '')
   const [procSaving, setProcSaving] = React.useState(false)
   const [procMsg, setProcMsg] = React.useState<string | null>(null)
@@ -152,17 +147,44 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
   const customerName: string = customer?.name || 'Walk-in Customer'
 
   const orgName: string = organization?.name || 'Global Traders'
-  const gstRate = Number(organization?.gst_rate ?? 18) / 100
-  const paymentTermsDays = Number(organization?.payment_terms_days ?? 10)
+  const gstRatePct = Number(organization?.gst_rate ?? DEFAULT_GST_RATE)
+  const gstRate = gstRatePct / 100
+  const paymentTermsDays = Number(organization?.payment_terms_days ?? DEFAULT_PAYMENT_TERMS_DAYS)
   const dueDate = addDays(sale?.created_at, paymentTermsDays)
 
-  // Totals are computed from the real lines: per-line GST = gst_rate x line amount.
-  const subtotal = round2(items.reduce((sum, it) => sum + Number(it.subtotal || 0), 0))
+  // Totals: the STORED values win (QA audit C4). Phase 2 checkout
+  // stores subtotal (ex-GST), gst_amount and grand_total on the sale,
+  // and total_amount IS the grand total — the amount charged. The
+  // invoice must print what was charged, never recompute GST on top
+  // of it (the old code did, and a 138,980 sale invoiced 163,996.40).
+  // Old sales predate the GST columns: their gst_amount /
+  // grand_total are NULL, so for them GST is computed from the
+  // lines at the org rate — the fallback only, so old invoices
+  // still render.
+  const linesSubtotal = round2(items.reduce((sum, it) => sum + Number(it.subtotal || 0), 0))
+  const storedSubtotal = sale?.subtotal != null ? Number(sale.subtotal) : null
+  const storedGst = sale?.gst_amount != null ? Number(sale.gst_amount) : null
+  const storedGrand = sale?.grand_total != null ? Number(sale.grand_total) : null
+  const hasStoredTotals = storedGst != null && storedGrand != null
+  const subtotal = storedSubtotal != null ? round2(storedSubtotal) : linesSubtotal
   const lineGst = (it: InvoiceItem) => round2(Number(it.subtotal || 0) * gstRate)
-  const gstTotal = round2(items.reduce((sum, it) => sum + lineGst(it), 0))
-  const grandTotal = round2(subtotal + gstTotal)
+  // Per-line GST is an indicative split for the GST column only;
+  // the totals rows below are the stored amounts when they exist,
+  // so a per-line rounding cent can never move the grand total.
+  const gstTotal = hasStoredTotals ? round2(storedGst) : round2(items.reduce((sum, it) => sum + lineGst(it), 0))
+  const grandTotal = hasStoredTotals ? round2(storedGrand) : round2(subtotal + gstTotal)
 
   const fbrReferenceNo: string = (sale?.fbr_reference_no || '').trim()
+  // FBR SCOPE-OUT (QA audit M1, decided 2026-11-22): the FBR
+  // fields on a sale are STORAGE + DISPLAY ONLY. No FBR submit
+  // step exists in this app — no FBR/PRAL integration spec and no
+  // real token were ever provided — so nothing in the app can ever
+  // populate fbr_status / fbr_reference_no / the response fields,
+  // and every invoice stays 'Pending' until a submit step is built
+  // against a real spec. Do NOT add a submit button that goes
+  // nowhere, and do not promise submission anywhere in the UI:
+  // the invoice is a record of the sale, not proof of FBR filing.
+  // (Recorded in FBR_RADARS_HANDOVER.md as well.)
   const fbrStatus: string = (sale?.fbr_status || '').trim() || 'Pending'
   const fbrResponse: string =
     sale?.fbr_response_code || sale?.fbr_response_message
@@ -177,20 +199,34 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
   React.useEffect(() => {
     if (!fbrReferenceNo) return
     let alive = true
+    setQrPending(true)
     QRCode.toDataURL(fbrReferenceNo, { width: 128, margin: 1 })
       .then((url) => {
         if (alive) {
           setQrDataUrl(url)
           setQrFailed(false)
+          setQrPending(false)
         }
       })
       .catch(() => {
-        if (alive) setQrFailed(true)
+        if (alive) {
+          setQrFailed(true)
+          setQrPending(false)
+        }
       })
     return () => {
       alive = false
     }
   }, [fbrReferenceNo])
+
+  // Print is gated until the seller details the invoice must carry
+  // are set in Settings (QA audit H7): an invoice must never print
+  // looking like an unfilled template.
+  const missingSellerDetails = [
+    !organization?.ntn?.trim() && 'seller NTN',
+    !organization?.bank_name?.trim() && 'bank name',
+    !organization?.bank_iban?.trim() && 'bank account / IBAN',
+  ].filter(Boolean) as string[]
 
   // Procurement Ref. is edited inline and saved via the
   // updateProcurementRef server action (app/actions/sales.ts).
@@ -208,7 +244,10 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
     }
   }
 
-  // Plain-text version of the invoice, formatted to paste into the FBR portal.
+  // Plain-text version of the invoice, for copying into an email
+  // or document. Unset fields render as —, never as bracket
+  // placeholders (QA audit H7). This is NOT an FBR-portal format:
+  // no portal paste-field spec exists, so nothing here claims one.
   function buildFbrText() {
     const lines: string[] = []
     lines.push(orgName.toUpperCase())
@@ -221,20 +260,20 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
     lines.push('')
     lines.push('SELLER / BUYER DETAILS')
     lines.push(`Seller: ${orgName}`)
-    lines.push(`NTN / STRN: ${organization?.ntn || '[Enter registered number]'}`)
-    lines.push(`Address: ${organization?.address || '[Seller business address]'}`)
-    lines.push(`Contact: ${sellerContact || '[Phone / Email]'}`)
+    lines.push(`NTN / STRN: ${organization?.ntn || '—'}`)
+    lines.push(`Address: ${organization?.address || '—'}`)
+    lines.push(`Contact: ${sellerContact || '—'}`)
     lines.push(`Buyer: ${customerName}`)
-    lines.push(`NTN / STRN: ${customer?.ntn || '[Enter buyer number, if applicable]'}`)
-    lines.push(`Address: ${customer?.address || '[Buyer address]'}`)
-    lines.push(`Buyer Type: ${customer?.buyer_type || '[Confirm applicable FBR category]'}`)
+    lines.push(`NTN / STRN: ${customer?.ntn || '—'}`)
+    lines.push(`Address: ${customer?.address || '—'}`)
+    lines.push(`Buyer Type: ${customer?.buyer_type || '—'}`)
     lines.push('')
     lines.push('ORDER, DELIVERY & PAYMENT')
     lines.push(`Payment Terms: ${paymentTermsLabel(sale?.payment_method)}`)
-    lines.push(`Dispatch: ${organization?.dispatch_text || 'Local Courier / Hand Delivery'}`)
-    lines.push(`Bank: ${organization?.bank_name || '[Bank name]'}`)
+    lines.push(`Dispatch: ${organization?.dispatch_text || '—'}`)
+    lines.push(`Bank: ${organization?.bank_name || '—'}`)
     lines.push(`Account Title: ${orgName}`)
-    lines.push(`Account / IBAN: ${organization?.bank_iban || '[Masked account / IBAN details]'}`)
+    lines.push(`Account / IBAN: ${organization?.bank_iban || '—'}`)
     lines.push('Currency: PKR')
     lines.push('')
     lines.push('ITEM DETAILS')
@@ -248,12 +287,12 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
     if (items.length === 0) lines.push('No line items on this invoice.')
     lines.push('')
     lines.push(`Subtotal: ${pkr(subtotal)}`)
-    lines.push(`GST Total: ${pkr(gstTotal)}`)
+    lines.push(`GST Total (${gstRatePct}%): ${pkr(gstTotal)}`)
     lines.push(`Grand Total: ${pkr(grandTotal)}`)
     lines.push(`Amount in Words: ${amountInWords(grandTotal)}`)
     lines.push('')
     lines.push('FBR DIGITAL INVOICING DETAILS | TO BE POPULATED BY THE ERP AFTER A SUCCESSFUL FBR RESPONSE')
-    lines.push('Environment: Production (Live) — after approval/testing')
+    lines.push('Environment: Pending approval / testing')
     lines.push(`FBR Invoice Reference No.: ${fbrReferenceNo || '[Returned by FBR API — do not invent]'}`)
     lines.push(`Submission Status: ${fbrStatus}`)
     lines.push(`FBR Response / Validation: ${fbrResponse}`)
@@ -316,6 +355,10 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
            (globals.css :root thead th, !important). This scoped rule
            wins it back for the invoice header, which must be navy. */
         #fbr-invoice-print thead th { background: ${NAVY} !important; border-color: ${BORDER} !important; }
+        /* Same theme tints every tbody row mint on hover (globals.css
+           tbody tr:hover). Scoped off for the invoice only — print
+           is unaffected either way (QA audit L9). */
+        #fbr-invoice-print tbody tr:hover { background: transparent !important; }
         @media print {
           body * { visibility: hidden !important; }
           #fbr-invoice-print, #fbr-invoice-print * { visibility: visible !important; }
@@ -332,6 +375,17 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
         }
         @page { size: A4; margin: 12mm; }
       `}</style>
+
+      {/* Print gate (QA audit H7): until the seller NTN + bank
+          details are set in Settings, the invoice would print as an
+          unfilled template — warn visibly and keep Print disabled. */}
+      {missingSellerDetails.length > 0 && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300 print:hidden">
+          Printing is paused until the seller details are set in{' '}
+          <Link href="/settings" className="font-semibold underline underline-offset-2">Settings → FBR / Invoice</Link>
+          {' '}— still missing: {missingSellerDetails.join(', ')}. The invoice below shows — for the missing fields.
+        </div>
+      )}
 
       {/* Action bar — never printed */}
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
@@ -362,13 +416,24 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={copyText}>
             {copied === 'text' ? <Check className="h-4 w-4 mr-1.5" /> : <Copy className="h-4 w-4 mr-1.5" />}
-            {copied === 'text' ? 'Copied' : 'Copy for FBR'}
+            {copied === 'text' ? 'Copied' : 'Copy invoice text'}
           </Button>
           <Button variant="outline" size="sm" onClick={copyHtml}>
             {copied === 'html' ? <Check className="h-4 w-4 mr-1.5" /> : <FileText className="h-4 w-4 mr-1.5" />}
             {copied === 'html' ? 'Copied' : 'Copy as formatted'}
           </Button>
-          <Button size="sm" onClick={() => window.print()}>
+          <Button
+            size="sm"
+            onClick={() => window.print()}
+            disabled={missingSellerDetails.length > 0 || qrPending}
+            title={
+              missingSellerDetails.length > 0
+                ? `Set ${missingSellerDetails.join(', ')} in Settings before printing`
+                : qrPending
+                  ? 'Wait for the FBR QR code to finish generating'
+                  : 'Print invoice'
+            }
+          >
             <Printer className="h-4 w-4 mr-1.5" />
             Print Invoice
           </Button>
@@ -415,16 +480,16 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
           <div className="border-b p-3 text-[13px] sm:border-b-0 sm:border-r" style={{ borderColor: BORDER }}>
             <p className="font-bold">Seller</p>
             <p>{orgName}</p>
-            <p>NTN / STRN: {organization?.ntn || '[Enter registered number]'}</p>
-            <p>Address: {organization?.address || '[Seller business address]'}</p>
-            <p>Contact: {sellerContact || '[Phone / Email]'}</p>
+            <p>NTN / STRN: {organization?.ntn || '—'}</p>
+            <p>Address: {organization?.address || '—'}</p>
+            <p>Contact: {sellerContact || '—'}</p>
           </div>
           <div className="p-3 text-[13px]">
             <p className="font-bold">Buyer</p>
             <p>{customerName}</p>
-            <p>NTN / STRN: {customer?.ntn || '[Enter buyer number, if applicable]'}</p>
-            <p>Address: {customer?.address || '[Buyer address]'}</p>
-            <p>Buyer Type: {customer?.buyer_type || '[Confirm applicable FBR category]'}</p>
+            <p>NTN / STRN: {customer?.ntn || '—'}</p>
+            <p>Address: {customer?.address || '—'}</p>
+            <p>Buyer Type: {customer?.buyer_type || '—'}</p>
           </div>
         </div>
 
@@ -438,17 +503,17 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
               <td className="w-[18%] border p-2" style={{ backgroundColor: LIGHT_BLUE, borderColor: BORDER }}>Payment Terms</td>
               <td className="w-[32%] border p-2" style={{ borderColor: BORDER }}>{paymentTermsLabel(sale?.payment_method)}</td>
               <td className="w-[18%] border p-2" style={{ backgroundColor: LIGHT_BLUE, borderColor: BORDER }}>Dispatch</td>
-              <td className="w-[32%] border p-2" style={{ borderColor: BORDER }}>{organization?.dispatch_text || 'Local Courier / Hand Delivery'}</td>
+              <td className="w-[32%] border p-2" style={{ borderColor: BORDER }}>{organization?.dispatch_text || '—'}</td>
             </tr>
             <tr>
               <td className="border p-2" style={{ backgroundColor: LIGHT_BLUE, borderColor: BORDER }}>Bank</td>
-              <td className="border p-2" style={{ borderColor: BORDER }}>{organization?.bank_name || '[Bank name]'}</td>
+              <td className="border p-2" style={{ borderColor: BORDER }}>{organization?.bank_name || '—'}</td>
               <td className="border p-2" style={{ backgroundColor: LIGHT_BLUE, borderColor: BORDER }}>Account Title</td>
               <td className="border p-2" style={{ borderColor: BORDER }}>{orgName}</td>
             </tr>
             <tr>
               <td className="border p-2" style={{ backgroundColor: LIGHT_BLUE, borderColor: BORDER }}>Account / IBAN</td>
-              <td className="border p-2" style={{ borderColor: BORDER }}>{organization?.bank_iban || '[Masked account / IBAN details]'}</td>
+              <td className="border p-2" style={{ borderColor: BORDER }}>{organization?.bank_iban || '—'}</td>
               <td className="border p-2" style={{ backgroundColor: LIGHT_BLUE, borderColor: BORDER }}>Currency</td>
               <td className="border p-2" style={{ borderColor: BORDER }}>PKR</td>
             </tr>
@@ -476,7 +541,7 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
               <th className="whitespace-nowrap border p-2 text-left text-[12px] font-semibold" style={{ backgroundColor: NAVY, borderColor: BORDER }}>Specifications</th>
               <th className="whitespace-nowrap border p-2 text-center text-[12px] font-semibold" style={{ backgroundColor: NAVY, borderColor: BORDER }}>Qty</th>
               <th className="whitespace-nowrap border p-2 text-center text-[12px] font-semibold" style={{ backgroundColor: NAVY, borderColor: BORDER }}>Unit Price (PKR)</th>
-              <th className="whitespace-nowrap border p-2 text-center text-[12px] font-semibold" style={{ backgroundColor: NAVY, borderColor: BORDER }}>GST</th>
+              <th className="whitespace-nowrap border p-2 text-center text-[12px] font-semibold" style={{ backgroundColor: NAVY, borderColor: BORDER }}>GST ({gstRatePct}%)</th>
               <th className="whitespace-nowrap border p-2 text-center text-[12px] font-semibold" style={{ backgroundColor: NAVY, borderColor: BORDER }}>Line Total (PKR)</th>
             </tr>
           </thead>
@@ -517,7 +582,7 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
               <td className="border p-2" style={{ borderColor: BORDER }} />
               <td className="border p-2" style={{ borderColor: BORDER }} />
               <td className="border p-2" style={{ borderColor: BORDER }} />
-              <td className="whitespace-nowrap border p-2 text-right" style={{ borderColor: BORDER }}>GST Total</td>
+              <td className="whitespace-nowrap border p-2 text-right" style={{ borderColor: BORDER }}>GST Total ({gstRatePct}%)</td>
               <td className="whitespace-nowrap border p-2 text-right" style={{ borderColor: BORDER }}>{pkr(gstTotal)}</td>
             </tr>
             <tr>
@@ -543,7 +608,7 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
         <div className="mt-1 grid grid-cols-1 border sm:grid-cols-3" style={{ borderColor: BORDER }}>
           <div className="border p-3 text-[13px]" style={{ backgroundColor: LIGHT_BLUE, borderColor: BORDER }}>
             <p className="font-bold">Environment</p>
-            <p className="mt-0.5">Production (Live) — after approval/testing</p>
+            <p className="mt-0.5">Pending approval / testing</p>
           </div>
           <div className="border p-3 text-[13px]" style={{ backgroundColor: LIGHT_BLUE, borderColor: BORDER }}>
             <p className="font-bold">FBR Invoice Reference No.</p>
@@ -559,7 +624,9 @@ export function FbrInvoiceClient({ sale, organization }: { sale: FbrSale; organi
           </div>
           <div className="border p-3 text-[13px]" style={{ backgroundColor: LIGHT_BLUE, borderColor: BORDER }}>
             <p className="font-bold">FBR QR Code</p>
-            {fbrReferenceNo && qrDataUrl && !qrFailed ? (
+            {fbrReferenceNo && qrPending ? (
+              <p className="mt-0.5">Generating QR code…</p>
+            ) : fbrReferenceNo && qrDataUrl && !qrFailed ? (
               <Image src={qrDataUrl} alt={`FBR QR code for ${fbrReferenceNo}`} width={96} height={96} unoptimized className="mt-1 h-24 w-24" />
             ) : (
               <p className="mt-0.5">[Generate/display only as per official FBR specification]</p>

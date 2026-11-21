@@ -143,7 +143,7 @@ export async function processCheckout(
 
   if (error) return { error: error.message }
 
-  const result = data as { invoice_number?: string; total_amount?: number } | null
+  const result = data as { invoice_number?: string; subtotal?: number; gst_amount?: number; total_amount?: number } | null
   if (!result?.invoice_number) {
     return { error: 'Checkout failed: no invoice was created.' }
   }
@@ -155,9 +155,13 @@ export async function processCheckout(
 
   // total_amount is the server-computed GRAND total (ex-GST
   // subtotal + GST at the org rate) — never the cart's total.
+  // subtotal / gst_amount ride along so the POS receipt can show
+  // the GST breakdown from server values, not a client recompute.
   return {
     success: true,
     invoice_number: result.invoice_number,
+    subtotal: Number(result.subtotal) || 0,
+    gst_amount: Number(result.gst_amount) || 0,
     total_amount: Number(result.total_amount) || 0,
   }
 }
@@ -204,7 +208,7 @@ export async function getInvoiceByNumber(invoiceNumber: string) {
     const { data: sale, error } = await supabase
       .from('sales')
       .select(`
-        id, invoice_number, subtotal, total_amount, payment_method, created_at,
+        id, invoice_number, subtotal, gst_amount, grand_total, total_amount, payment_method, created_at,
         procurement_ref, fbr_status, fbr_reference_no, fbr_response_code,
         fbr_response_message, fbr_submitted_at,
         customer:customers(id, name, phone, email, address, ntn, buyer_type),

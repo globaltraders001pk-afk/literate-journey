@@ -22,7 +22,7 @@ export default async function FbrInvoicePage({ params }: { params: Promise<{ id:
         <div className="print:hidden">
           <h1 className="text-2xl font-semibold tracking-normal">FBR Invoice</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Invoice {invoiceNumber} — print it or copy it for the FBR portal.
+            Invoice {invoiceNumber} — print it or copy the invoice text.
           </p>
         </div>
 
@@ -47,7 +47,7 @@ export default async function FbrInvoicePage({ params }: { params: Promise<{ id:
       <div className="print:hidden">
         <h1 className="text-2xl font-semibold tracking-normal">FBR Invoice</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Invoice {invoiceNumber} — print it or copy it for the FBR portal.
+          Invoice {invoiceNumber} — print it or copy the invoice text.
         </p>
       </div>
 
