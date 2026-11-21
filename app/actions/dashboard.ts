@@ -10,10 +10,10 @@ import {
   buildVendorsRadar,
   type BatchRow,
   type PurchaseOrderRow,
-  type RadarSummary,
   type StockLevelRow,
   type VendorRow,
-} from '@/app/actions/radars'
+} from '@/lib/radar-builders'
+import type { RadarSummary } from '@/app/actions/radars'
 
 export async function getCheeseCommandCenterData() {
   const [profile, supabase] = await Promise.all([
