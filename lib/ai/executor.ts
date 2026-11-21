@@ -650,6 +650,14 @@ export async function executeErpTool(
 
       case 'generate_monthly_payroll': {
         const { month, year } = args
+        const monthNum = Number(month)
+        const yearNum = Number(year)
+        if (!Number.isInteger(monthNum) || monthNum < 1 || monthNum > 12) {
+          return { success: false, action: 'Payroll Failed', details: 'Month must be between 1 and 12.' }
+        }
+        if (!Number.isInteger(yearNum) || yearNum < 2000 || yearNum > 2100) {
+          return { success: false, action: 'Payroll Failed', details: 'Year must be between 2000 and 2100.' }
+        }
 
         const { data: employees } = await supabase
           .from('employees')
@@ -661,13 +669,27 @@ export async function executeErpTool(
           return { success: false, action: 'Payroll Failed', details: 'No active employees found to generate payroll.' }
         }
 
+        // Never overwrite rows that are already paid — re-generating a
+        // month must be safe.
+        const { data: existing } = await supabase
+          .from('payroll')
+          .select('employee_id, status')
+          .eq('organization_id', orgId)
+          .eq('month', monthNum)
+          .eq('year', yearNum)
+
+        const paidEmployeeIds = new Set(
+          (existing || []).filter((row) => row.status === 'paid').map((row) => row.employee_id)
+        )
+
         let createdCount = 0
         for (const emp of employees) {
+          if (paidEmployeeIds.has(emp.id)) continue
           const { error } = await supabase.from('payroll').upsert({
             organization_id: orgId,
             employee_id: emp.id,
-            month: Number(month),
-            year: Number(year),
+            month: monthNum,
+            year: yearNum,
             basic_salary: emp.base_salary,
             deductions: 0,
             bonuses: 0,
@@ -703,7 +725,9 @@ export async function executeErpTool(
         const employee = employees[0]
         const todayStr = new Date().toISOString().split('T')[0]
 
-        const { error } = await supabase
+        // Only a draft row can be marked paid; an already-paid (or
+        // missing) row must fail loudly instead of reporting success.
+        const { data: paid, error } = await supabase
           .from('payroll')
           .update({
             status: 'paid',
@@ -713,8 +737,13 @@ export async function executeErpTool(
           .eq('employee_id', employee.id)
           .eq('month', Number(month))
           .eq('year', Number(year))
+          .eq('status', 'draft')
+          .select('id')
 
         if (error) throw new Error(error.message)
+        if (!paid || paid.length === 0) {
+          return { success: false, action: 'Payroll Already Paid', details: `No draft payroll found for ${employee.first_name} ${employee.last_name} for period ${month}/${year} — it may already be paid.` }
+        }
 
         revalidatePath('/employees/payroll')
         return {

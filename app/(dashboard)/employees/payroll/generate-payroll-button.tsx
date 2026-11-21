@@ -17,6 +17,8 @@ export function GeneratePayrollButton({ month, year }: { month: number, year: nu
     
     if (result.error) {
       alert(`Error: ${result.error}`)
+    } else if (result.message) {
+      alert(result.message)
     }
   }
 

@@ -9,8 +9,11 @@ export function PayButton({ payrollId }: { payrollId: string }) {
 
   async function handlePay() {
     setPending(true)
-    await payPayroll(payrollId)
+    const result = await payPayroll(payrollId)
     setPending(false)
+    if (result?.error) {
+      alert(`Error: ${result.error}`)
+    }
   }
 
   return (
