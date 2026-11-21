@@ -70,7 +70,10 @@ export function InvoiceModal({
       setLoading(true)
       getInvoiceByNumber(invNum)
         .then(res => {
-          if (res) {
+          // A string result means the FBR v2 columns are missing from the
+          // DB (see INVOICE_SCHEMA_MISSING) — not a sale, so ignore it
+          // here the same as "not found".
+          if (res && typeof res === 'object') {
             setData({
               invoice_number: res.invoice_number,
               total_amount: Number(res.total_amount || 0),

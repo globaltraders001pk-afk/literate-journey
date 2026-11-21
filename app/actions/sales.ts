@@ -237,6 +237,30 @@ export async function processCheckout(
   return { success: true, invoice_number }
 }
 
+/**
+ * Returned by getInvoiceByNumber when the query fails because the FBR
+ * v2 columns (procurement_ref, fbr_status, ...) do not exist in the
+ * database yet — i.e. the v2 delta SQL has not been run on the live DB.
+ * The invoice page shows a plain "schema update needed" message for
+ * this instead of a 404, so old pre-v2 invoices stay readable in
+ * spirit (and new ones fail loudly, not silently).
+ */
+export const INVOICE_SCHEMA_MISSING = 'schema-missing' as const
+
+// PostgREST reports a missing column as PGRST204 ("could not find the
+// column ... in the schema cache"); Postgres itself reports it as
+// 42703 / "column ... does not exist". Match defensively on code or
+// message, not on one exact string, so either layer's wording is caught.
+function isMissingColumnError(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code
+  if (code === 'PGRST204' || code === '42703') return true
+  const message = (error as { message?: string } | null)?.message || ''
+  return (
+    /column .* does not exist/i.test(message) ||
+    /could not find the .* column/i.test(message)
+  )
+}
+
 export async function getInvoiceByNumber(invoiceNumber: string) {
   try {
     const supabase = await createClient()
@@ -267,10 +291,15 @@ export async function getInvoiceByNumber(invoiceNumber: string) {
       .eq('invoice_number', invoiceNumber)
       .maybeSingle()
 
-    if (error || !sale) return null
+    if (error) {
+      if (isMissingColumnError(error)) return INVOICE_SCHEMA_MISSING
+      return null
+    }
+    if (!sale) return null
     return sale
   } catch (err) {
     console.error('Error fetching invoice by number:', err)
+    if (isMissingColumnError(err)) return INVOICE_SCHEMA_MISSING
     return null
   }
 }
