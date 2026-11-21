@@ -30,6 +30,11 @@ export const getUserProfile = cache(async () => {
 
 export const getOrganization = cache(async (organizationId: string) => {
   if (!organizationId) return null
+  // Membership check (QA audit L4): the caller may only fetch the
+  // org they belong to. An arbitrary id must never return another
+  // tenant's row — its result is passed to client components.
+  const caller = await getUserProfile()
+  if (!caller || caller.organization_id !== organizationId) return null
   const supabase = await createClient()
   const { data } = await supabase
     .from('organizations')

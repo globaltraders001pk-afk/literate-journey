@@ -1,6 +1,7 @@
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { ReactNode } from 'react'
+import { redirect } from 'next/navigation'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { getUserProfile, getOrganization } from '@/lib/auth-utils'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -10,13 +11,21 @@ import { ExpensiveAmbientMesh } from '@/components/expensive-ambient-mesh'
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const profile = await getUserProfile()
-  const organization = profile?.organization_id ? await getOrganization(profile.organization_id) : null
+
+  // Unauthenticated users never see the dashboard shell (QA audit
+  // L1): redirect instead of rendering with a fallback 'employee'
+  // role. Middleware is the first line of defence, not the only one.
+  if (!profile) {
+    redirect('/login')
+  }
+
+  const organization = profile.organization_id ? await getOrganization(profile.organization_id) : null
   
   return (
     <TooltipProvider>
       <OrganizationProvider initialOrganization={organization}>
         <SidebarProvider>
-          <AppSidebar role={profile?.role || 'employee'} />
+          <AppSidebar role={profile.role} />
           <main className="relative flex-1 overflow-hidden flex flex-col bg-background/95 transition-colors">
             {/* Ultra-Luxury Ambient Gradient Aurora & Precision Grid */}
             <ExpensiveAmbientMesh />

@@ -8,9 +8,15 @@ import { revalidatePath } from 'next/cache'
 export async function getPublicBrand() {
   try {
     const admin = createAdminClient()
+    // Deterministic order (QA audit M19): without one, a
+    // multi-tenant DB returns whichever org row PostgREST picks
+    // first. The seeded org is the oldest, so first-created wins.
+    // Only the two columns the login brand needs — never the
+    // full row (which holds the backend-only fbr_token).
     const { data } = await admin
       .from('organizations')
       .select('name, logo_url')
+      .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle()
     return data || { name: 'Global Traders', logo_url: null }
@@ -194,17 +200,19 @@ export async function uploadOrganizationLogo(formData: FormData) {
     return { error: 'File size exceeds 5MB limit. Please upload a smaller image.' }
   }
 
+  // SVG and GIF are not allowed (QA audit M20): an SVG served
+  // from the public bucket can carry script, and GIF is not
+  // needed for a logo. Only raster formats browsers render as
+  // inert images.
   const allowedMimeTypes = [
     'image/png',
     'image/jpeg',
     'image/jpg',
     'image/webp',
-    'image/svg+xml',
-    'image/gif',
   ]
 
   if (!allowedMimeTypes.includes(file.type)) {
-    return { error: 'Invalid file format. Only PNG, JPG, WEBP, SVG, and GIF are supported.' }
+    return { error: 'Invalid file format. Only PNG, JPG, and WEBP are supported.' }
   }
 
   try {

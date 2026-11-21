@@ -4,10 +4,6 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/auth')
-  const isPrefetch = 
-    request.headers.get('next-router-prefetch') === '1' ||
-    request.headers.get('purpose') === 'prefetch' ||
-    request.headers.get('x-purpose') === 'prefetch'
 
   const allCookies = request.cookies.getAll()
   const hasAuthCookie = allCookies.some(c => c.name.startsWith('sb-') && c.name.includes('-auth-token'))
@@ -24,10 +20,12 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Fast path 3: Prefetch request with active auth cookie -> 0ms pass-through without blocking Supabase network call
-  if (hasAuthCookie && isPrefetch && !isAuthRoute) {
-    return NextResponse.next({ request })
-  }
+  // NOTE (QA audit H11): there used to be a third fast path here —
+  // prefetch requests carrying an auth cookie skipped getUser()
+  // entirely. A cookie NAME proves nothing (cookies can be stale,
+  // forged, or logged-out server-side), so it is gone: every
+  // request that reaches this point, prefetch included, is
+  // validated with getUser() below.
 
   let supabaseResponse = NextResponse.next({
     request,
@@ -36,9 +34,19 @@ export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+  // Fail CLOSED when the Supabase env is missing: the old code
+  // logged and passed the request through, which let protected
+  // pages render with no auth backend behind them. Protected
+  // routes redirect to /login; auth routes get a plain 500
+  // (redirecting /login to /login would loop).
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
-    return supabaseResponse
+    if (isAuthRoute) {
+      return new NextResponse('Server configuration error: Supabase is not configured.', { status: 500 })
+    }
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
   }
 
   const supabase = createServerClient(
