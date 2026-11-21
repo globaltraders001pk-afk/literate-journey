@@ -1621,9 +1621,12 @@ $$;
 -- ============================================================
 -- 5. get_stock_levels: per-product current stock, aggregated
 --    in Postgres (one row per product) instead of fetching
---    every movement into JS and summing there. Same shape the
---    app already used: 'Low Stock' at or below the minimum,
---    otherwise 'In Stock'.
+--    every movement into JS and summing there. Status is a real
+--    three-way band (Phase 3a, QA audit L7/M3): 'Out of Stock'
+--    at or below zero, 'Low Stock' at or below the effective
+--    minimum — 10 when minimum_stock_level is NULL or 0
+--    (0 = unset) — otherwise 'In Stock'. Same function as
+--    supabase/migrations/20261122_stock_status.sql.
 -- ============================================================
 create or replace function public.get_stock_levels()
 returns table (
@@ -1646,7 +1649,9 @@ as $$
     p.minimum_stock_level,
     coalesce(sum(m.quantity), 0) as current_stock,
     case
-      when coalesce(sum(m.quantity), 0) <= coalesce(p.minimum_stock_level, 0)
+      when coalesce(sum(m.quantity), 0) <= 0
+        then 'Out of Stock'
+      when coalesce(sum(m.quantity), 0) <= coalesce(nullif(p.minimum_stock_level, 0), 10)
         then 'Low Stock'
       else 'In Stock'
     end as status
