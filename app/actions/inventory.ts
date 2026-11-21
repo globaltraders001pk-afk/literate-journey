@@ -5,6 +5,7 @@ import { checkAccess, getUserProfile } from '@/lib/auth-utils'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { generateAutoBatchNumber } from '@/lib/batch-number'
 import { revalidatePath } from 'next/cache'
+import { normalizePageOptions, type PageOptions } from '@/lib/pagination'
 
 export async function getCategories() {
   const profile = await getUserProfile()
@@ -99,21 +100,23 @@ export async function deleteCategory(id: string) {
   return { success: true }
 }
 
-export async function getProducts() {
+export async function getProducts(options?: PageOptions) {
   const profile = await getUserProfile()
-  if (!profile) return []
+  if (!profile) return { rows: [], total: 0, limit: 0, offset: 0 }
+  const { limit, offset } = normalizePageOptions(options)
   const supabase = await createClient()
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from('products')
     .select(`
       *,
       categories(name)
-    `)
+    `, { count: 'exact' })
     .eq('organization_id', profile.organization_id)
     .order('created_at', { ascending: false })
-  
+    .range(offset, offset + limit - 1)
+
   if (error) throw new Error(error.message)
-  return data
+  return { rows: data ?? [], total: count ?? 0, limit, offset }
 }
 
 export async function createProduct(formData: FormData) {
@@ -269,44 +272,35 @@ export async function deleteProduct(id: string) {
   return { success: true, message: 'Product deleted successfully.' }
 }
 
-export async function getStockLevels(organizationId?: string) {
-  // Org scope (QA audit H2): radars pass their org explicitly;
-  // every other caller is scoped to the signed-in user's org.
-  // Unauthenticated callers get nothing, not all tenants.
-  const orgId = organizationId ?? (await getUserProfile())?.organization_id
-  if (!orgId) return []
-
+// Stock is aggregated in Postgres now (QA audit M8): the old
+// version fetched every active product with ALL of its
+// inventory_movements and summed them in JS, so cost grew with
+// total history. public.get_stock_levels() returns one row per
+// product with the signed movement sum. The org always comes
+// from the caller's own JWT inside the function — no org
+// parameter is accepted, so a caller can never ask for another
+// tenant's stock.
+export async function getStockLevels() {
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('products')
-    .select(`
-      id,
-      name,
-      sku,
-      minimum_stock_level,
-      inventory_movements (
-        quantity
-      )
-    `)
-    .eq('is_active', true)
-    .eq('organization_id', orgId)
-    .order('name')
-  
+  const { data, error } = await supabase.rpc('get_stock_levels')
+
   if (error) throw new Error(error.message)
-  
-  // Calculate total stock by summing movements
-  return data.map((product: any) => {
-    const movements = product.inventory_movements || []
-    const currentStock = movements.reduce((sum: number, movement: any) => sum + (Number(movement.quantity) || 0), 0)
-    return {
-      id: product.id,
-      name: product.name,
-      sku: product.sku,
-      minimum_stock_level: product.minimum_stock_level,
-      current_stock: currentStock,
-      status: currentStock <= (product.minimum_stock_level || 0) ? 'Low Stock' : 'In Stock'
-    }
-  })
+
+  return (data ?? []).map((row: {
+    product_id: string
+    name: string
+    sku: string | null
+    minimum_stock_level: number | null
+    current_stock: number | string
+    status: string
+  }) => ({
+    id: row.product_id,
+    name: row.name,
+    sku: row.sku,
+    minimum_stock_level: row.minimum_stock_level,
+    current_stock: Number(row.current_stock) || 0,
+    status: row.status,
+  }))
 }
 
 export async function getMovements(limit: number = 200) {
@@ -441,24 +435,33 @@ export async function createMovement(formData: FormData) {
   return { success: true }
 }
 
-export async function getBatches(organizationId?: string) {
-  // Same org rule as getStockLevels: radars pass their org,
-  // everyone else is scoped to the signed-in user's org.
+export async function getBatches(
+  organizationId?: string,
+  options?: PageOptions
+) {
+  // Same org rule as before: radars pass their org, everyone else
+  // is scoped to the signed-in user's org. (The org parameter is
+  // only ever the caller's own — see getExpiryRadar.)
   const orgId = organizationId ?? (await getUserProfile())?.organization_id
-  if (!orgId) return []
+  if (!orgId) return { rows: [], total: 0, limit: 0, offset: 0 }
+  // Batches are ordered by expiry first, so a capped page still
+  // holds the nearest-expiring batches (the ones every consumer
+  // — radars, dashboard — cares about).
+  const { limit, offset } = normalizePageOptions(options)
 
   const supabase = await createClient()
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from('product_batches')
     .select(`
       *,
       products(name, sku)
-    `)
+    `, { count: 'exact' })
     .eq('organization_id', orgId)
     .order('expiry_date', { ascending: true })
-  
+    .range(offset, offset + limit - 1)
+
   if (error) throw new Error(error.message)
-  return data
+  return { rows: data ?? [], total: count ?? 0, limit, offset }
 }
 
 export async function createBatch(formData: FormData) {
