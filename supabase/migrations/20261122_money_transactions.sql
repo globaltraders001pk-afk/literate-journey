@@ -392,6 +392,9 @@ declare
   v_user_id uuid;
   v_branch_id uuid;
   v_sale_total numeric;
+  v_sale_subtotal numeric;
+  v_sale_gst_amount numeric;
+  v_gst_rate numeric := 0;
   v_sale_customer_id uuid;
   v_return_number text;
   v_return_id uuid;
@@ -424,13 +427,23 @@ begin
   -- The original sale must exist in the caller's org. Its
   -- total_amount is the GRAND total (subtotal + GST) — the
   -- amount actually charged — so the refund cap below is
-  -- against what the customer paid, GST included.
-  select total_amount, customer_id
-    into v_sale_total, v_sale_customer_id
+  -- against what the customer paid, GST included. subtotal /
+  -- gst_amount give each line's GST share, so the per-line cap
+  -- below is GST-inclusive too: a full return refunds the
+  -- whole grand total, not just the ex-GST subtotal.
+  select total_amount, subtotal, gst_amount, customer_id
+    into v_sale_total, v_sale_subtotal, v_sale_gst_amount, v_sale_customer_id
     from public.sales
     where id = p_sale_id and organization_id = v_org_id;
   if not found then
     raise exception 'Sale not found in your organization';
+  end if;
+
+  -- Effective GST rate on this sale, from what was actually
+  -- charged (not today's org rate, which may have changed
+  -- since): gst_amount / subtotal, 0 when the sale had no GST.
+  if coalesce(v_sale_subtotal, 0) > 0 then
+    v_gst_rate := coalesce(v_sale_gst_amount, 0) / v_sale_subtotal;
   end if;
 
   -- A return for a named customer must match the sale's customer.
@@ -510,8 +523,13 @@ begin
     end if;
 
     -- A line's refund can never exceed what was paid for the
-    -- quantity being returned.
-    if round(v_refund, 2) > round(v_qty * v_unit_price, 2) then
+    -- quantity being returned, GST included: the customer paid
+    -- unit_price plus that line's GST share, so the cap is the
+    -- GST-inclusive line amount. (The old cap was ex-GST, so a
+    -- full return could never refund the GST the customer paid,
+    -- even though the total cap below is the GST-inclusive
+    -- grand total.)
+    if round(v_refund, 2) > round(v_qty * v_unit_price * (1 + v_gst_rate), 2) then
       raise exception 'Refund exceeds the amount paid for the returned quantity';
     end if;
 
