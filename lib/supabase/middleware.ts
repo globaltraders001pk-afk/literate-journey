@@ -3,7 +3,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/auth')
+  // Only /login is public (QA audit L3): no register page and no
+  // /auth/callback exist in this repo, so /register and /auth*
+  // must not be public routes — anyone hitting them is sent to
+  // /login like any other protected path. Account creation is
+  // owner/admin-only via createEmployee.
+  const isAuthRoute = pathname.startsWith('/login')
 
   const allCookies = request.cookies.getAll()
   const hasAuthCookie = allCookies.some(c => c.name.startsWith('sb-') && c.name.includes('-auth-token'))
