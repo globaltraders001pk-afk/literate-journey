@@ -44,14 +44,25 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
   // Interactive task completion state
   const [tasks, setTasks] = useState(activeTasks)
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null)
+  const [taskError, setTaskError] = useState<string | null>(null)
 
   const handleToggleTask = async (taskId: string) => {
     setCompletingTaskId(taskId)
+    setTaskError(null)
     try {
-      await updateTaskStatus(taskId, 'DONE')
-      setTasks(prev => prev.filter(t => t.id !== taskId))
+      // updateTaskStatus returns { error } on failure — it never
+      // throws — so the old try/catch never fired and the task was
+      // removed from local state even when the server update failed
+      // (QA audit L5). Only drop it on success.
+      const result = await updateTaskStatus(taskId, 'DONE')
+      if (result?.error) {
+        setTaskError(result.error)
+      } else {
+        setTasks(prev => prev.filter(t => t.id !== taskId))
+      }
     } catch (err) {
       console.error('Failed to update task:', err)
+      setTaskError('Could not update the task. Please try again.')
     } finally {
       setCompletingTaskId(null)
     }
@@ -178,10 +189,14 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
                 {formatPKR(stats.currentMonthSales)}
               </div>
               <div className="flex items-center justify-between mt-1 text-xs">
-                <span className={`flex items-center font-medium ${stats.salesGrowth >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
-                  {stats.salesGrowth >= 0 ? <TrendingUp className="mr-1 h-3.5 w-3.5" /> : <TrendingDown className="mr-1 h-3.5 w-3.5" />}
-                  {Math.abs(stats.salesGrowth).toFixed(1)}% vs last mo.
-                </span>
+                {stats.salesGrowth === null ? (
+                  <span className="text-muted-foreground font-medium">— vs last mo. (no sales last month)</span>
+                ) : (
+                  <span className={`flex items-center font-medium ${stats.salesGrowth >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
+                    {stats.salesGrowth >= 0 ? <TrendingUp className="mr-1 h-3.5 w-3.5" /> : <TrendingDown className="mr-1 h-3.5 w-3.5" />}
+                    {Math.abs(stats.salesGrowth).toFixed(1)}% vs last mo.
+                  </span>
+                )}
                 <span className="text-muted-foreground">
                   Today: <strong className="text-foreground">{formatPKR(stats.todaySalesTotal)}</strong>
                 </span>
@@ -283,8 +298,16 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
 
       </div>
 
-      {/* 3b. Radars alert strip — compact early-warning summary, links to /radars */}
+      {/* 3b. Radars alert strip — compact early-warning summary, links to /radars.
+          Hidden entirely when there is nothing to warn about (QA audit L8):
+          a clean system used to show "Expiring within 6 months: 0 (0 urgent…)". */}
       {!isEmployee && radarSummary && (
+        (radarSummary.expiringWithin180Days > 0 ||
+          radarSummary.urgent30Days > 0 ||
+          radarSummary.outOfStock > 0 ||
+          radarSummary.lowStock > 0 ||
+          radarSummary.pendingPOs > 0 ||
+          radarSummary.overduePOs > 0) && (
         <Link href="/radars" className="block">
           <Card className="border-border/70 shadow-xs hover:border-primary/40 transition-colors">
             <CardContent className="py-3 px-4">
@@ -314,6 +337,7 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
             </CardContent>
           </Card>
         </Link>
+        )
       )}
 
       {/* 4. Main Two-Column Layout */}
@@ -411,7 +435,10 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
                           </div>
                           <div className="text-right">
                             {isAdminOrOwner ? (
-                              <p className="font-semibold text-foreground">{formatPKR(cheese.revenue)}</p>
+                              <>
+                                <p className="font-semibold text-foreground">{formatPKR(cheese.revenue)}</p>
+                                <p className="text-[10px] text-muted-foreground">ex-GST</p>
+                              </>
                             ) : (
                               <Badge variant="outline" className="text-[11px] bg-primary/10 text-primary border-primary/20 font-medium">
                                 {cheese.quantity} sold
@@ -648,6 +675,11 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
               </div>
             </CardHeader>
             <CardContent>
+              {taskError && (
+                <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-2 py-1.5 mb-2">
+                  {taskError}
+                </p>
+              )}
               {tasks.length === 0 ? (
                 <div className="text-center py-6">
                   <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto mb-1.5" />

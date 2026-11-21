@@ -13,6 +13,7 @@ import {
   type StockLevelRow,
   type VendorRow,
 } from '@/lib/radar-builders'
+import { daysUntil, isUrgentExpiry, todayPKT, toPKTDateString } from '@/lib/dates'
 import type { RadarSummary } from '@/app/actions/radars'
 
 export async function getCheeseCommandCenterData() {
@@ -28,9 +29,12 @@ export async function getCheeseCommandCenterData() {
   const orgId = profile?.organization_id ?? '00000000-0000-0000-0000-000000000000'
 
   const date = new Date()
-  const month = date.getMonth() + 1
-  const year = date.getFullYear()
-  const todayStr = date.toISOString().split('T')[0]
+  // Month / day boundaries are the business's calendar (Asia/Karachi),
+  // not UTC: a sale at 00:30 PKT belongs to the PKT date, and the
+  // UTC instant is the previous day (QA audit M9).
+  const todayStr = todayPKT()
+  const month = Number(todayStr.split('-')[1])
+  const year = Number(todayStr.split('-')[0])
 
   const prevMonth = month === 1 ? 12 : month - 1
   const prevYear = month === 1 ? year - 1 : year
@@ -125,9 +129,11 @@ export async function getCheeseCommandCenterData() {
 
   const prevSales = prevSalesRes.data || []
   const lastMonthSales = prevSales.reduce((sum, sale) => sum + Number(sale.total_amount), 0)
-  const salesGrowth = lastMonthSales === 0 ? 100 : ((currentMonthSales - lastMonthSales) / lastMonthSales) * 100
+  // No last month to grow from: null, not a forced 100% (QA audit
+  // L7/M11). The client renders "— vs last mo." for null.
+  const salesGrowth = lastMonthSales === 0 ? null : ((currentMonthSales - lastMonthSales) / lastMonthSales) * 100
 
-  const todaySales = monthSales.filter(s => s.created_at.startsWith(todayStr))
+  const todaySales = monthSales.filter(s => toPKTDateString(s.created_at) === todayStr)
   const todaySalesTotal = todaySales.reduce((sum, s) => sum + Number(s.total_amount), 0)
   const todaySalesCount = todaySales.length
 
@@ -138,9 +144,11 @@ export async function getCheeseCommandCenterData() {
   for (let i = 6; i >= 0; i--) {
     const d = new Date(date)
     d.setDate(d.getDate() - i)
-    const key = d.toISOString().split('T')[0]
+    const key = toPKTDateString(d)
+    // Weekday of the PKT calendar day, not the server-local one.
+    const [ky, km, kd] = key.split('-').map(Number)
     trendMap.set(key, {
-      day: dayNames[d.getDay()],
+      day: dayNames[new Date(Date.UTC(ky, km - 1, kd)).getUTCDay()],
       date: key,
       amount: 0,
       count: 0
@@ -149,7 +157,7 @@ export async function getCheeseCommandCenterData() {
 
   const weekSales = weekSalesRes.data || []
   weekSales.forEach((s: any) => {
-    const key = s.created_at.split('T')[0]
+    const key = toPKTDateString(s.created_at)
     if (trendMap.has(key)) {
       const item = trendMap.get(key)!
       item.amount += Number(s.total_amount) || 0
@@ -176,7 +184,9 @@ export async function getCheeseCommandCenterData() {
     }
   })
 
-  // 4. Top Selling Products
+  // 4. Top Selling Products — revenue is EX-GST line subtotals
+  // (item 4): the same basis the Reports ranking uses, labelled in
+  // the UI. Sales totals elsewhere are incl-GST grand totals.
   const saleItems = saleItemsRes.data || []
   const productMap = new Map<string, { id: string; name: string; sku: string; quantity: number; revenue: number }>()
   saleItems.forEach((item: any) => {
@@ -195,40 +205,47 @@ export async function getCheeseCommandCenterData() {
     .sort((a, b) => b.quantity - a.quantity)
     .slice(0, 4)
 
-  // 5. Stock Levels & Low Stock Alerts (computed from single allStock query)
+  // 5. Stock Levels & Low Stock Alerts — derived from the same
+  // buildStockRadar() the radars use (single compute, M8), NOT
+  // from the RPC's status string: the RPC only ever returned
+  // 'Low Stock' / 'In Stock', so the dashboard's 'Out of Stock'
+  // branch could never fire (QA audit L7). The minimum shown is
+  // the builder's EFFECTIVE threshold (10 when unset, 0 = unset)
+  // — never `|| 5`, which printed a made-up "min 5".
   const stockList = allStock || []
-  const lowStockItems = stockList
-    .filter((p: any) => p.status === 'Low Stock' || p.status === 'Out of Stock')
+  const stock = buildStockRadar((stockList || []) as StockLevelRow[])
+  const lowStockItems = stock.products
+    .filter((p) => p.status === 'LOW' || p.status === 'OUT_OF_STOCK')
     .slice(0, 5)
-    .map((p: any) => ({
+    .map((p) => ({
       id: p.id,
       name: p.name,
       sku: p.sku,
       current_stock: p.current_stock,
-      minimum_stock_level: p.minimum_stock_level || 5,
-      status: p.status
+      minimum_stock_level: p.minimum_stock_level,
+      status: p.status === 'OUT_OF_STOCK' ? 'Out of Stock' : 'Low Stock'
     }))
 
-  const lowStockCount = stockList.filter((p: any) => p.status === 'Low Stock' || p.status === 'Out of Stock').length
+  const lowStockCount = stock.counts.OUT_OF_STOCK + stock.counts.LOW
 
   // 6. Batches & Expiring Alerts (computed from single allBatches query)
   // Batches arrive ordered by expiry first, so the 500-row page
   // still holds the nearest-expiring batches.
+  // "Expiring within 30 days" is the ONE shared definition (M5):
+  // daysUntil() from lib/dates.ts, urgent = fewer than 30 days
+  // left (expired included, day 30 excluded) — the same count the
+  // radar strip shows as "urgent · 30 days".
   const batchList = allBatches.rows || []
-  const nowTime = new Date().getTime()
   const expiringBatchesList = batchList
     .filter((b: any) => {
       if (!b.expiry_date || b.quantity_remaining <= 0) return false
-      const exp = new Date(b.expiry_date).getTime()
-      const diffDays = Math.ceil((exp - nowTime) / (1000 * 60 * 60 * 24))
-      return diffDays <= 30
+      return isUrgentExpiry(daysUntil(b.expiry_date))
     })
 
   const expiringBatches = expiringBatchesList
     .slice(0, 5)
     .map((b: any) => {
-      const exp = new Date(b.expiry_date).getTime()
-      const diffDays = Math.ceil((exp - nowTime) / (1000 * 60 * 60 * 24))
+      const diffDays = daysUntil(b.expiry_date)
       const prodName = Array.isArray(b.products) ? b.products[0]?.name : b.products?.name
       return {
         id: b.id,
@@ -253,7 +270,6 @@ export async function getCheeseCommandCenterData() {
   let radarSummary: RadarSummary | null = null
   if (role !== 'employee') {
     const expiry = buildExpiryRadar((batchList || []) as BatchRow[])
-    const stock = buildStockRadar((stockList || []) as StockLevelRow[])
     const vendorsRadar = buildVendorsRadar(
       ((vendorsRes.data || []) as VendorRow[]),
       ((posRes.data || []) as PurchaseOrderRow[])
