@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { processCheckout } from '@/app/actions/sales'
 import { formatPKR } from '@/lib/format-currency'
+import { DEFAULT_GST_RATE } from '@/lib/invoice-constants'
 import { useOrganization } from '@/components/providers/organization-provider'
 import Link from 'next/link'
 import { Minus, Plus, ShoppingCart, Trash2, Printer, CheckCircle2, Store, Loader2, FileText, Search } from 'lucide-react'
@@ -36,6 +37,11 @@ interface CompletedSale {
   paymentMethod: string
   items: CartItem[]
   total: number
+  /** Server-computed ex-GST subtotal and GST (Phase 2 checkout):
+   * the receipt shows the breakdown from these, never a client
+   * recompute. total is the grand total — the amount charged. */
+  subtotal: number
+  gstAmount: number
 }
 
 export function POSClient({ products, customers, stockByProduct }: { products: any[], customers: any[], stockByProduct?: Record<string, number> }) {
@@ -144,8 +150,10 @@ export function POSClient({ products, customers, stockByProduct }: { products: a
         customerName,
         paymentMethod: paymentSnapshot,
         items: cartSnapshot,
-        // The server-computed total (catalog prices) — never the
-        // cart's own total, which the server does not trust.
+        // The server-computed totals (catalog prices) — never the
+        // cart's own totals, which the server does not trust.
+        subtotal: result.subtotal ?? totalSnapshot,
+        gstAmount: result.gst_amount ?? 0,
         total: result.total_amount ?? totalSnapshot,
       })
       setCart([])
@@ -505,7 +513,19 @@ export function POSClient({ products, customers, stockByProduct }: { products: a
 
                 <div className="divider border-t border-dashed border-border" />
 
-                {/* Total */}
+                {/* Totals: ex-GST subtotal + GST + grand total, all
+                    from the server values (C4). The amount charged
+                    stays the grand total. */}
+                <div className="space-y-1 text-[11px]">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Subtotal (ex-GST)</span>
+                    <span className="font-mono">{formatPKR(completedSale.subtotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>GST ({Number(organization?.gst_rate ?? DEFAULT_GST_RATE)}%)</span>
+                    <span className="font-mono">{formatPKR(completedSale.gstAmount)}</span>
+                  </div>
+                </div>
                 <div className="total-section flex items-center justify-between text-base font-semibold pt-1">
                   <span>Grand Total</span>
                   <span className="text-primary font-mono">{formatPKR(completedSale.total)}</span>

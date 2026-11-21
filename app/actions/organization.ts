@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUserProfile, ORGANIZATION_PUBLIC_COLUMNS } from '@/lib/auth-utils'
 import { isValidIban, isValidNtn } from '@/lib/validation'
+import { DEFAULT_GST_RATE, DEFAULT_INVOICE_PREFIX, DEFAULT_PAYMENT_TERMS_DAYS } from '@/lib/invoice-constants'
 import { revalidatePath } from 'next/cache'
 
 export async function getPublicBrand() {
@@ -117,8 +118,8 @@ export async function updateFbrSettings(formData: FormData) {
   }
   const fbr_token = (formData.get('fbr_token') as string)?.trim()
   // Invoice prefix: uppercase letters/digits/hyphen only, max 10 chars. Defaults to GT-226.
-  const rawPrefix = (formData.get('invoice_prefix') as string)?.trim().toUpperCase() || 'GT-226'
-  const invoice_prefix = rawPrefix.replace(/[^A-Z0-9-]/g, '').slice(0, 10) || 'GT-226'
+  const rawPrefix = (formData.get('invoice_prefix') as string)?.trim().toUpperCase() || DEFAULT_INVOICE_PREFIX
+  const invoice_prefix = rawPrefix.replace(/[^A-Z0-9-]/g, '').slice(0, 10) || DEFAULT_INVOICE_PREFIX
   const bank_name = (formData.get('bank_name') as string)?.trim()
   const bank_iban = (formData.get('bank_iban') as string)?.trim()
   if (bank_iban && !isValidIban(bank_iban)) {
@@ -127,10 +128,10 @@ export async function updateFbrSettings(formData: FormData) {
   const dispatch_text = (formData.get('dispatch_text') as string)?.trim()
   // Payment terms in days (0 = due immediately), clamped 0–365, default 10.
   const rawTerms = parseInt((formData.get('payment_terms_days') as string) || '', 10)
-  const payment_terms_days = Number.isFinite(rawTerms) ? Math.min(365, Math.max(0, rawTerms)) : 10
+  const payment_terms_days = Number.isFinite(rawTerms) ? Math.min(365, Math.max(0, rawTerms)) : DEFAULT_PAYMENT_TERMS_DAYS
   // GST rate in percent, clamped 0–100, default 18.
   const rawGst = parseFloat((formData.get('gst_rate') as string) || '')
-  const gst_rate = Number.isFinite(rawGst) ? Math.min(100, Math.max(0, rawGst)) : 18
+  const gst_rate = Number.isFinite(rawGst) ? Math.min(100, Math.max(0, rawGst)) : DEFAULT_GST_RATE
 
   const supabase = await createClient()
 

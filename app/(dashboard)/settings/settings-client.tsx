@@ -24,6 +24,7 @@ import {
   removeOrganizationLogo 
 } from '@/app/actions/organization'
 import { useOrganization } from '@/components/providers/organization-provider'
+import { DEFAULT_GST_RATE, DEFAULT_PAYMENT_TERMS_DAYS } from '@/lib/invoice-constants'
 import { 
   Sun, 
   Moon, 
@@ -953,7 +954,7 @@ export function SettingsClient({
             <CardTitle>FBR / Invoice</CardTitle>
           </div>
           <CardDescription>
-            FBR details printed on every invoice. Fill these in once — they are
+            Invoice details printed on every invoice. Fill these in once — they are
             stored in the database and applied to all invoices automatically. The
             FBR token is backend-only and is never printed on an invoice. Nothing
             here is hardcoded in the code.
@@ -1050,7 +1051,7 @@ export function SettingsClient({
                     type="number"
                     min={0}
                     placeholder="10"
-                    defaultValue={organization?.payment_terms_days ?? 10}
+                    defaultValue={organization?.payment_terms_days ?? DEFAULT_PAYMENT_TERMS_DAYS}
                   />
                   <p className="text-[11px] text-muted-foreground">
                     Due Date on the invoice is the invoice date plus this many days.
@@ -1065,10 +1066,10 @@ export function SettingsClient({
                     min={0}
                     step="0.01"
                     placeholder="18"
-                    defaultValue={organization?.gst_rate ?? 18}
+                    defaultValue={organization?.gst_rate ?? DEFAULT_GST_RATE}
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Applied per line on the invoice (GST Total = rate × Subtotal).
+                    Charged on top of ex-GST prices at checkout; the invoice shows the stored GST.
                   </p>
                 </div>
               </div>
