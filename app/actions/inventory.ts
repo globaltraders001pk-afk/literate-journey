@@ -272,6 +272,28 @@ export async function deleteProduct(id: string) {
   return { success: true, message: 'Product deleted successfully.' }
 }
 
+// One row of public.get_stock_levels(): per-product current stock
+// aggregated in Postgres. The RPC returns untyped JSON, so the
+// shape is pinned here — without it, every derived list (the
+// dashboard's low-stock items, the stock radar) degrades to `any`.
+export interface StockLevel {
+  id: string
+  name: string
+  sku: string | null
+  minimum_stock_level: number | null
+  current_stock: number
+  status: string
+}
+
+interface StockLevelRpcRow {
+  product_id: string
+  name: string
+  sku: string | null
+  minimum_stock_level: number | null
+  current_stock: number | string
+  status: string
+}
+
 // Stock is aggregated in Postgres now (QA audit M8): the old
 // version fetched every active product with ALL of its
 // inventory_movements and summed them in JS, so cost grew with
@@ -280,20 +302,14 @@ export async function deleteProduct(id: string) {
 // from the caller's own JWT inside the function — no org
 // parameter is accepted, so a caller can never ask for another
 // tenant's stock.
-export async function getStockLevels() {
+export async function getStockLevels(): Promise<StockLevel[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('get_stock_levels')
 
   if (error) throw new Error(error.message)
 
-  return (data ?? []).map((row: {
-    product_id: string
-    name: string
-    sku: string | null
-    minimum_stock_level: number | null
-    current_stock: number | string
-    status: string
-  }) => ({
+  const rows = (data ?? []) as StockLevelRpcRow[]
+  return rows.map((row) => ({
     id: row.product_id,
     name: row.name,
     sku: row.sku,
