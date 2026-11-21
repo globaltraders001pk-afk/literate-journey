@@ -16,7 +16,8 @@ You exclusively serve the Business Owner. You have direct authorization to manip
 
 Core Instructions:
 1. When the owner asks you to add, edit, or adjust anything (products, stock, batches, attendance, employees, vendors, purchase orders, expenses, tasks, settings, customers, sales, POS checkout), call the appropriate tool immediately.
-2. Sales & POS Checkout: When the owner asks to create a checkout, ring up a sale, or sell items (e.g., "Create a checkout for 50 Lays cash", "Sell 2 burgers"), call 'create_sale_checkout' immediately. It automatically finds the product, calculates the totals, logs the invoice, records the payment method, and deducts the inventory stock.
+2. Sales & POS Checkout: When the owner asks to create a checkout, ring up a sale, or sell items (e.g., "Create a checkout for 50 Lays cash", "Sell 2 burgers"), call 'create_sale_checkout' — it first returns a preview for the owner to confirm (see 2b), and only writes after confirmation. It automatically finds the product, calculates the totals, logs the invoice, records the payment method, and deducts the inventory stock.
+2b. Financial writes need the owner's explicit confirmation: checkout, expense, purchase order and payroll tools return a preview on first call and write NOTHING. Show the preview to the owner and ask for explicit confirmation. Only after the owner confirms, call the same tool again with confirm: true. Never present a preview as if it already happened.
 3. Sales History & Reports: When the owner asks for sales reports, selling history, or revenue over past days/weeks/months (e.g., "Generate a report of the past 50 days of my selling", "Show past 30 days sales"), call 'query_sales_history' immediately with the requested days or period (e.g., days: 50). Then present a crisp, clean executive sales report with summary metrics, revenue totals, and clear tables. Do NOT add unnecessary technical boilerplate or meta-commentary.
 4. If details are missing when creating records (e.g., payment method, SKU, unit, role, hire date), infer sensible defaults (e.g. payment_method 'CASH', unit 'pcs', auto-generated SKU, today's date, role 'Staff') so the owner never has to deal with tedious paperwork.
 5. If the owner asks for summaries, financial status, expiring batches, low stock, sales history, or tasks, use your query tools to pull live database records.
@@ -53,11 +54,14 @@ Always format your responses in a clean, executive, highly-structured Markdown p
 
 Keep the response crisp, professional, and visually structured.`
 
-function cleanJsonSchema(schema: any): any {
+// Loose JSON value: tool schemas are untyped JSON from the tool table.
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
+
+function cleanJsonSchema(schema: unknown): unknown {
   if (!schema || typeof schema !== 'object') return schema
   if (Array.isArray(schema)) return schema.map(cleanJsonSchema)
-  
-  const cleaned: any = {}
+
+  const cleaned: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(schema)) {
     if (k === 'type' && typeof v === 'string') {
       cleaned[k] = v.toLowerCase()
@@ -85,6 +89,13 @@ function getOpenRouterTools() {
   }))
 }
 
+// Catch-clause values are `unknown` in TS (only `any`/`unknown`
+// are allowed there) — narrow to a plain string for logging and
+// for the owner-facing error text.
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
 function cleanModelReply(raw: string): string {
   if (!raw) return 'Operation processed.'
   return raw
@@ -110,7 +121,7 @@ async function runOpenRouterAgent(
   const endpoint = 'https://openrouter.ai/api/v1/chat/completions'
   const tools = getOpenRouterTools()
 
-  const openAiMessages: any[] = [
+  const openAiMessages: Array<Record<string, unknown>> = [
     { role: 'system', content: SYSTEM_INSTRUCTION },
     ...messages.map(m => ({
       role: m.role === 'assistant' || m.role === 'model' ? 'assistant' : 'user',
@@ -138,7 +149,8 @@ async function runOpenRouterAgent(
         ...(fallbackModels.length > 1 ? { models: fallbackModels } : {}),
         messages: openAiMessages,
         tools,
-        temperature: 0.2
+        temperature: 0.2,
+        max_tokens: 2048
       })
     })
 
@@ -169,7 +181,7 @@ async function runOpenRouterAgent(
 
     const toolCalls = choice.tool_calls || []
     if (!toolCalls.length) {
-      const rawText = choice.content || choice.reasoning || (choice as any).text || ''
+      const rawText = choice.content || choice.reasoning || (choice as { text?: string }).text || ''
       const cleaned = cleanModelReply(rawText)
       if (!cleaned || cleaned === 'Operation processed.') {
         if (actionsExecuted.length > 0) {
@@ -190,10 +202,10 @@ async function runOpenRouterAgent(
 
     // Execute each requested tool call
     for (const tc of toolCalls) {
-      let args: any = {}
+      let args: Record<string, unknown> = {}
       try {
         args = typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : (tc.function.arguments || {})
-      } catch (e) {
+      } catch {
         args = {}
       }
 
@@ -207,6 +219,7 @@ async function runOpenRouterAgent(
           success: executionResult.success,
           action: executionResult.action,
           details: executionResult.details,
+          requiresConfirmation: executionResult.requiresConfirmation ?? false,
           data: executionResult.data
         })
       })
@@ -225,9 +238,12 @@ async function runGeminiAgent(
   apiKey: string
 ): Promise<AgentRunResponse> {
   const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash'
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`
+  // The API key travels in a header, never in the URL query
+  // string (QA audit M18): query strings are logged by proxies
+  // and servers, headers are not.
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`
 
-  const contents: any[] = messages.map(m => ({
+  const contents: Array<Record<string, unknown>> = messages.map(m => ({
     role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user',
     parts: [{ text: m.content }]
   }))
@@ -250,13 +266,14 @@ async function runGeminiAgent(
         }
       ],
       generation_config: {
-        temperature: 0.2
+        temperature: 0.2,
+        maxOutputTokens: 2048
       }
     }
 
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify(requestBody)
     })
 
@@ -275,11 +292,15 @@ async function runGeminiAgent(
       }
     }
 
-    const parts = candidate.content.parts || []
-    const functionCallPart = parts.find((p: any) => p.functionCall)
+    interface GeminiPart {
+      text?: string
+      functionCall?: { name: string; args: Record<string, unknown> }
+    }
+    const parts: GeminiPart[] = candidate.content.parts || []
+    const functionCallPart = parts.find((p) => p.functionCall)
 
     if (!functionCallPart) {
-      const textParts = parts.filter((p: any) => p.text).map((p: any) => p.text).join('\n')
+      const textParts = parts.filter((p) => p.text).map((p) => p.text).join('\n')
       return {
         reply: textParts || 'Operation processed.',
         actionsExecuted
@@ -287,7 +308,14 @@ async function runGeminiAgent(
     }
 
     // Process the function call
-    const { name: toolName, args: toolArgs } = functionCallPart.functionCall
+    const functionCall = functionCallPart.functionCall
+    if (!functionCall) {
+      return {
+        reply: 'The AI model returned an empty response.',
+        actionsExecuted
+      }
+    }
+    const { name: toolName, args: toolArgs } = functionCall
     const executionResult = await executeErpTool(toolName, toolArgs || {}, profile)
     actionsExecuted.push(executionResult)
 
@@ -305,6 +333,7 @@ async function runGeminiAgent(
               success: executionResult.success,
               action: executionResult.action,
               details: executionResult.details,
+              requiresConfirmation: executionResult.requiresConfirmation ?? false,
               data: executionResult.data
             }
           }
@@ -330,19 +359,19 @@ export async function runErpAgent(
   if (openRouterKey) {
     try {
       return await runOpenRouterAgent(messages, profile, openRouterKey)
-    } catch (err: any) {
-      console.error('OpenRouter execution error:', err?.message || err)
+    } catch (err: unknown) {
+      console.error('OpenRouter execution error:', errorMessage(err))
       // If Gemini key is also available, attempt fallback
       if (geminiKey) {
         console.log('Falling back to Google Gemini API...')
         try {
           return await runGeminiAgent(messages, profile, geminiKey)
-        } catch (geminiErr: any) {
-          console.error('Gemini fallback also failed:', geminiErr?.message || geminiErr)
+        } catch (geminiErr: unknown) {
+          console.error('Gemini fallback also failed:', errorMessage(geminiErr))
         }
       }
       return {
-        reply: `⚠️ **AI Service Error**: Could not complete request via OpenRouter. ${err?.message || ''}`,
+        reply: `⚠️ **AI Service Error**: Could not complete request via OpenRouter. ${errorMessage(err)}`,
         actionsExecuted: []
       }
     }
@@ -352,9 +381,9 @@ export async function runErpAgent(
   if (geminiKey) {
     try {
       return await runGeminiAgent(messages, profile, geminiKey)
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
-        reply: `⚠️ **AI Service Error**: ${err?.message || 'Error connecting to Gemini AI.'}`,
+        reply: `⚠️ **AI Service Error**: ${errorMessage(err) || 'Error connecting to Gemini AI.'}`,
         actionsExecuted: []
       }
     }
@@ -392,7 +421,7 @@ async function runOpenRouterAgentWithStreaming(
   const endpoint = 'https://openrouter.ai/api/v1/chat/completions'
   const tools = getOpenRouterTools()
 
-  const openAiMessages: any[] = [
+  const openAiMessages: Array<Record<string, unknown>> = [
     { role: 'system', content: SYSTEM_INSTRUCTION },
     ...messages.map(m => ({
       role: m.role === 'assistant' || m.role === 'model' ? 'assistant' : 'user',
@@ -422,7 +451,8 @@ async function runOpenRouterAgentWithStreaming(
         messages: openAiMessages,
         tools,
         include_reasoning: true,
-        temperature: 0.2
+        temperature: 0.2,
+        max_tokens: 2048
       })
     })
 
@@ -442,7 +472,7 @@ async function runOpenRouterAgentWithStreaming(
     }
 
     // Extract thinking/reasoning if provided by the model
-    const reasoningText = choice.reasoning || (choice as any).reasoning_content || ''
+    const reasoningText = choice.reasoning || (choice as { reasoning_content?: string }).reasoning_content || ''
     if (reasoningText) {
       sendEvent({ type: 'thinking', text: reasoningText })
     }
@@ -456,7 +486,7 @@ async function runOpenRouterAgentWithStreaming(
 
     if (!toolCalls.length) {
       sendEvent({ type: 'status', message: '' })
-      const rawText = choice.content || choice.reasoning || (choice as any).text || ''
+      const rawText = choice.content || choice.reasoning || (choice as { text?: string }).text || ''
       const cleaned = cleanModelReply(rawText)
       const textToStream = cleaned || 'Operation processed successfully.'
       
@@ -469,17 +499,17 @@ async function runOpenRouterAgentWithStreaming(
     }
 
     // Execute requested tools
-    const toolNames = toolCalls.map((t: any) => t.function.name).join(', ')
+    const toolNames = toolCalls.map((t: { function: { name: string } }) => t.function.name).join(', ')
     sendEvent({ type: 'status', message: `Running database tool (${toolNames})...` })
     sendEvent({ type: 'thinking', text: `Triggered database operation: ${toolNames}` })
 
     openAiMessages.push(choice)
 
     for (const tc of toolCalls) {
-      let args: any = {}
+      let args: Record<string, unknown> = {}
       try {
         args = typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : (tc.function.arguments || {})
-      } catch (e) {
+      } catch {
         args = {}
       }
 
@@ -494,6 +524,7 @@ async function runOpenRouterAgentWithStreaming(
           success: executionResult.success,
           action: executionResult.action,
           details: executionResult.details,
+          requiresConfirmation: executionResult.requiresConfirmation ?? false,
           data: executionResult.data
         })
       })
@@ -515,7 +546,7 @@ export function createAgentStream(
       const sendEvent = (event: StreamEvent) => {
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
-        } catch (e) {
+        } catch {
           // Client closed connection
         }
       }
@@ -529,10 +560,10 @@ export function createAgentStream(
             await runOpenRouterAgentWithStreaming(messages, profile, openRouterKey, sendEvent)
             sendEvent({ type: 'done' })
             return
-          } catch (err: any) {
-            console.error('OpenRouter streaming error, falling back if possible:', err?.message || err)
+          } catch (err: unknown) {
+            console.error('OpenRouter streaming error, falling back if possible:', errorMessage(err))
             if (!geminiKey) {
-              sendEvent({ type: 'error', error: err?.message || 'OpenRouter streaming failed' })
+              sendEvent({ type: 'error', error: errorMessage(err) || 'OpenRouter streaming failed' })
               return
             }
           }
@@ -550,13 +581,13 @@ export function createAgentStream(
           await new Promise(r => setTimeout(r, 12))
         }
         sendEvent({ type: 'done' })
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Streaming agent fatal error:', err)
-        sendEvent({ type: 'error', error: err?.message || 'Internal Agent Streaming Error' })
+        sendEvent({ type: 'error', error: errorMessage(err) || 'Internal Agent Streaming Error' })
       } finally {
         try {
           controller.close()
-        } catch (e) {}
+        } catch {}
       }
     }
   })
