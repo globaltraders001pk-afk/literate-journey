@@ -1,16 +1,36 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUserProfile, type UserRole } from '@/lib/auth-utils'
 import { getStockLevels, getBatches } from '@/app/actions/inventory'
 
 // ---------------------------------------------------------------------------
 // Radars: 4-6 month advance warning for a medical / pharma business.
-// All four radars read real data via Supabase. They follow the same query
-// pattern as the surrounding actions (inventory.ts, vendors.ts,
-// purchases.ts, dashboard.ts): no org filter is added here, matching those
-// files. The wider RLS / org-filter gap is a known repo issue, not fixed
-// in this build.
+// All four radars read real data via Supabase, scoped to the caller's
+// own organization. The page gate alone is not enough — server actions
+// are directly callable — so every action below first requires the
+// caller's profile and only ever reads that org's rows (QA audit H3,
+// 2026-11-20). Roles match the /radars page gate: owner / admin /
+// manager only; employees get no radar data at all.
 // ---------------------------------------------------------------------------
+
+// Roles allowed to read radars (same list as the /radars page gate).
+const RADAR_ROLES: UserRole[] = ['owner', 'admin', 'manager']
+
+// The caller's profile, or an error. Server actions throw on auth
+// failure (Next.js server-actions guide pattern) — the /radars page
+// and the dashboard strip only call these for allowed roles, so a
+// throw here only ever fires on a direct, unauthorized call.
+async function requireRadarAccess() {
+  const profile = await getUserProfile()
+  if (!profile || !profile.organization_id) {
+    throw new Error('Unauthorized')
+  }
+  if (!RADAR_ROLES.includes(profile.role)) {
+    throw new Error('Forbidden: Radars are only available to owner, admin and manager roles.')
+  }
+  return profile
+}
 
 // Expiry bands (days left until expiry_date, counted from start of today)
 const EXPIRY_URGENT_DAYS = 30
@@ -180,9 +200,10 @@ function expiryBand(daysLeft: number): ExpiryBand {
 }
 
 export async function getExpiryRadar(): Promise<ExpiryRadar> {
+  const profile = await requireRadarAccess()
   // Same source as the dashboard's expiring list (getBatches), but with
   // 4-6 month bands instead of the old 30-day-only cutoff.
-  const allBatches = await getBatches()
+  const allBatches = await getBatches(profile.organization_id)
 
   const counts: Record<ExpiryBand, number> = {
     EXPIRED: 0,
@@ -223,9 +244,10 @@ export async function getExpiryRadar(): Promise<ExpiryRadar> {
 }
 
 export async function getStockRadar(): Promise<StockRadar> {
+  const profile = await requireRadarAccess()
   // Same method as getStockLevels in inventory.ts: current stock is the
   // sum of inventory_movements.quantity per product.
-  const stockLevels = await getStockLevels()
+  const stockLevels = await getStockLevels(profile.organization_id)
 
   const counts: Record<StockStatus, number> = {
     OUT_OF_STOCK: 0,
@@ -262,6 +284,7 @@ export async function getStockRadar(): Promise<StockRadar> {
 }
 
 export async function getInventoryRadar(): Promise<InventoryRadar> {
+  const profile = await requireRadarAccess()
   const supabase = await createClient()
 
   const now = new Date()
@@ -280,6 +303,7 @@ export async function getInventoryRadar(): Promise<InventoryRadar> {
       created_at,
       products(name, sku)
     `)
+    .eq('organization_id', profile.organization_id)
     .gte('created_at', thirtyDaysAgo.toISOString())
     .order('created_at', { ascending: false })
 
@@ -333,6 +357,7 @@ export async function getInventoryRadar(): Promise<InventoryRadar> {
 }
 
 export async function getVendorsRadar(): Promise<VendorsRadar> {
+  const profile = await requireRadarAccess()
   const supabase = await createClient()
 
   const [{ data: vendors, error: vendorError }, { data: pos, error: poError }] =
@@ -340,10 +365,12 @@ export async function getVendorsRadar(): Promise<VendorsRadar> {
       supabase
         .from('vendors')
         .select('id, name, contact_person, phone, email, is_active')
+        .eq('organization_id', profile.organization_id)
         .order('name', { ascending: true }),
       supabase
         .from('purchase_orders')
         .select('id, vendor_id, status, created_at, total_amount')
+        .eq('organization_id', profile.organization_id)
         .order('created_at', { ascending: false }),
     ])
 
@@ -393,6 +420,8 @@ export async function getVendorsRadar(): Promise<VendorsRadar> {
 
 // Compact numbers for the alert strip on /dashboard. Reuses the three
 // radar actions so the strip can never disagree with the /radars page.
+// Each delegated action requires the caller's profile and org scope,
+// so the summary is gated and scoped the same way.
 export async function getRadarSummary(): Promise<RadarSummary> {
   const [expiry, stock, vendors] = await Promise.all([
     getExpiryRadar(),
