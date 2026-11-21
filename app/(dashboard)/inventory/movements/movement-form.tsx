@@ -73,6 +73,11 @@ export function MovementForm({ products }: { products: any[] }) {
               <Label htmlFor="notes">Notes</Label>
               <Input id="notes" name="notes" placeholder="Reason for adjustment" />
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="expiry_date">Expiry Date (optional)</Label>
+              <Input id="expiry_date" name="expiry_date" type="date" />
+              <p className="text-xs text-muted-foreground">Only used for stock-in movements. A batch is created automatically with this expiry; leave blank if the expiry is not known.</p>
+            </div>
           </div>
           <DialogFooter>
             <Button type="submit" disabled={pending}>

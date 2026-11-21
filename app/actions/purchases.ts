@@ -97,7 +97,7 @@ export async function createSimplePO(formData: FormData) {
   return { success: true }
 }
 
-export async function receivePurchaseOrder(poId: string, itemId: string, productId: string, quantity: number) {
+export async function receivePurchaseOrder(poId: string, itemId: string, productId: string, quantity: number, expiryDate?: string | null) {
   const supabase = await createClient()
   const { data: userData } = await supabase.auth.getUser()
   if (!userData.user) return { error: 'Unauthorized' }
@@ -131,23 +131,39 @@ export async function receivePurchaseOrder(poId: string, itemId: string, product
     .update({ received_quantity: quantity })
     .eq('id', itemId)
 
-  // 3. Create a product batch (default expiry to 30 days for demo)
-  const expiry = new Date()
-  expiry.setDate(expiry.getDate() + 30)
-  
+  // 3. Create a product batch automatically. The expiry is recorded
+  // when the goods arrive with one (expiryDate), otherwise NULL — the
+  // old code invented "today + 30 days", which put every receipt in
+  // the URGENT band of the Expiry Radar. Requires the
+  // product-batches-expiry-nullable-delta.sql delta on the live DB.
+  // The batch number is made unique per receipt so a second receive
+  // of the same PO does not reuse the same batch code.
   const { data: po } = await supabase.from('purchase_orders').select('po_number').eq('id', poId).single()
-  
-  await supabase
+
+  let batchNumber = `${po?.po_number}-RECV`
+  const { data: existingBatches } = await supabase
+    .from('product_batches')
+    .select('batch_number')
+    .like('batch_number', `${batchNumber}%`)
+  if (existingBatches && existingBatches.some(b => b.batch_number === batchNumber)) {
+    let suffix = 2
+    while (existingBatches.some(b => b.batch_number === `${batchNumber}-${suffix}`)) suffix++
+    batchNumber = `${batchNumber}-${suffix}`
+  }
+
+  const { error: batchError } = await supabase
     .from('product_batches')
     .insert({
       organization_id: profile.organization_id,
       branch_id: branch.id,
       product_id: productId,
-      batch_number: `${po?.po_number}-RECV`,
-      expiry_date: expiry.toISOString().split('T')[0],
+      batch_number: batchNumber,
+      expiry_date: expiryDate || null,
       quantity_received: quantity,
       quantity_remaining: quantity
     })
+
+  if (batchError) return { error: batchError.message }
 
   // 4. Create inventory movement
   await supabase

@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { checkAccess } from '@/lib/auth-utils'
+import { generateAutoBatchNumber } from '@/lib/batch-number'
 import { revalidatePath } from 'next/cache'
 
 export async function getCategories() {
@@ -292,6 +293,11 @@ export async function createMovement(formData: FormData) {
   const movement_type = formData.get('movement_type') as string
   const quantity = parseInt(formData.get('quantity') as string)
   const notes = formData.get('notes') as string
+  // Optional expiry for the auto-created batch (stock-in only). When the
+  // goods arrive without a stated expiry, the batch stores NULL rather
+  // than an invented date. Requires the
+  // product-batches-expiry-nullable-delta.sql delta on the live DB.
+  const expiry_date = formData.get('expiry_date') as string
 
   if (!product_id || !movement_type || !quantity) return { error: 'Required fields missing' }
 
@@ -359,8 +365,33 @@ export async function createMovement(formData: FormData) {
     })
 
   if (error) return { error: error.message }
-  
+
+  // Stock entering the business (opening stock / purchase) gets a batch
+  // automatically, so the Expiry Radar sees it without anyone having to
+  // create the batch by hand. Expiry is recorded when provided, else NULL.
+  // Stock-out, wastage, returns and adjustments touch existing batches
+  // only, so no batch is created for them.
+  if (normalizedType === 'STOCK_IN') {
+    const { error: batchError } = await supabase
+      .from('product_batches')
+      .insert({
+        organization_id: profile.organization_id,
+        branch_id: branch.id,
+        product_id,
+        batch_number: generateAutoBatchNumber(),
+        manufacturing_date: null,
+        expiry_date: expiry_date || null,
+        quantity_received: finalQuantity,
+        quantity_remaining: finalQuantity
+      })
+
+    if (batchError) {
+      return { error: `Movement recorded, but the batch could not be created: ${batchError.message}` }
+    }
+  }
+
   revalidatePath('/inventory/movements')
+  revalidatePath('/inventory/batches')
   revalidatePath('/inventory/stock')
   return { success: true }
 }

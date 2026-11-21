@@ -10,8 +10,10 @@ export default async function BatchesPage() {
     getProducts()
   ])
 
-  // Helper to color code expiry
-  const getExpiryStatus = (dateString: string) => {
+  // Helper to color code expiry. Batches with no known expiry date
+  // (auto-created from stock-in without one) show "No Expiry".
+  const getExpiryStatus = (dateString: string | null) => {
+    if (!dateString) return { label: 'No Expiry', variant: 'secondary' as const }
     const expiry = new Date(dateString)
     const today = new Date()
     const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
@@ -67,7 +69,7 @@ export default async function BatchesPage() {
                     <TableCell>{batch.quantity_received}</TableCell>
                     <TableCell className="font-semibold">{batch.quantity_remaining}</TableCell>
                     <TableCell>{batch.manufacturing_date ? new Date(batch.manufacturing_date).toLocaleDateString() : '-'}</TableCell>
-                    <TableCell>{new Date(batch.expiry_date).toLocaleDateString()}</TableCell>
+                    <TableCell>{batch.expiry_date ? new Date(batch.expiry_date).toLocaleDateString() : '-'}</TableCell>
                     <TableCell>
                       <Badge variant={status.variant}>
                         {status.label}

@@ -11,8 +11,11 @@ export function ReceiveButton({ poId, itemId, productId, quantity }: { poId: str
     if (!confirm('Mark this purchase order as received and update inventory?')) return
 
     setPending(true)
-    await receivePurchaseOrder(poId, itemId, productId, quantity)
+    const result = await receivePurchaseOrder(poId, itemId, productId, quantity)
     setPending(false)
+    if (result?.error) {
+      alert(`Receive failed: ${result.error}`)
+    }
   }
 
   return (
