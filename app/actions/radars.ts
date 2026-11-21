@@ -149,7 +149,7 @@ interface ProductRef {
 
 type JoinedProduct = ProductRef | ProductRef[] | null
 
-interface BatchRow {
+export interface BatchRow {
   id: string
   batch_number: string
   quantity_remaining: number | null
@@ -166,7 +166,7 @@ interface MovementRow {
   products: JoinedProduct
 }
 
-interface VendorRow {
+export interface VendorRow {
   id: string
   name: string
   contact_person: string | null
@@ -175,7 +175,7 @@ interface VendorRow {
   is_active: boolean | null
 }
 
-interface PurchaseOrderRow {
+export interface PurchaseOrderRow {
   id: string
   vendor_id: string | null
   status: string
@@ -202,9 +202,18 @@ function expiryBand(daysLeft: number): ExpiryBand {
 export async function getExpiryRadar(): Promise<ExpiryRadar> {
   const profile = await requireRadarAccess()
   // Same source as the dashboard's expiring list (getBatches), but with
-  // 4-6 month bands instead of the old 30-day-only cutoff.
-  const allBatches = await getBatches(profile.organization_id)
+  // 4-6 month bands instead of the old 30-day-only cutoff. The radar
+  // counts every batch, so it reads up to 5000 rows (the page list
+  // caps at 500); past that, counts cover the nearest-expiring
+  // 5000 — the page discloses the cap.
+  const { rows: allBatches } = await getBatches(profile.organization_id, { limit: 5000 })
+  return buildExpiryRadar((allBatches || []) as BatchRow[])
+}
 
+// Pure builder: expiry bands from an already-fetched batch list,
+// so callers that already hold the batches (the /radars bundle,
+// the dashboard) do not fetch them a second time.
+export function buildExpiryRadar(allBatches: BatchRow[]): ExpiryRadar {
   const counts: Record<ExpiryBand, number> = {
     EXPIRED: 0,
     URGENT: 0,
@@ -245,10 +254,25 @@ export async function getExpiryRadar(): Promise<ExpiryRadar> {
 
 export async function getStockRadar(): Promise<StockRadar> {
   const profile = await requireRadarAccess()
-  // Same method as getStockLevels in inventory.ts: current stock is the
-  // sum of inventory_movements.quantity per product.
-  const stockLevels = await getStockLevels(profile.organization_id)
+  // Stock now comes from the Postgres aggregate (getStockLevels
+  // calls public.get_stock_levels), not a JS sum over history.
+  const stockLevels = await getStockLevels()
+  return buildStockRadar(stockLevels)
+}
 
+// Stock levels the RPC returns — the input shape of the builder
+// below (a caller that already fetched stock passes it through
+// instead of fetching it again).
+export interface StockLevelRow {
+  id: string
+  name: string
+  sku: string | null
+  minimum_stock_level: number | null
+  current_stock: number
+}
+
+// Pure builder: stock bands from an already-fetched stock list.
+export function buildStockRadar(stockLevels: StockLevelRow[]): StockRadar {
   const counts: Record<StockStatus, number> = {
     OUT_OF_STOCK: 0,
     LOW: 0,
@@ -283,7 +307,12 @@ export async function getStockRadar(): Promise<StockRadar> {
   return { counts, products }
 }
 
-export async function getInventoryRadar(): Promise<InventoryRadar> {
+export async function getInventoryRadar(
+  // A caller that already computed the stock radar (the /radars
+  // bundle) passes it in, so stock is computed once per request
+  // instead of once here and once for the Stock tab (M8).
+  stockRadar?: StockRadar
+): Promise<InventoryRadar> {
   const profile = await requireRadarAccess()
   const supabase = await createClient()
 
@@ -350,8 +379,8 @@ export async function getInventoryRadar(): Promise<InventoryRadar> {
     .slice(0, 10)
 
   // Anomaly: computed stock below zero (same stock method as getStockLevels).
-  const stockRadar = await getStockRadar()
-  const negativeStock = stockRadar.products.filter((p) => p.current_stock < 0)
+  const resolvedStockRadar = stockRadar ?? (await getStockRadar())
+  const negativeStock = resolvedStockRadar.products.filter((p) => p.current_stock < 0)
 
   return { byType, topMovers, negativeStock }
 }
@@ -377,6 +406,17 @@ export async function getVendorsRadar(): Promise<VendorsRadar> {
   if (vendorError) throw new Error(vendorError.message)
   if (poError) throw new Error(poError.message)
 
+  return buildVendorsRadar(
+    (vendors || []) as VendorRow[],
+    (pos || []) as PurchaseOrderRow[]
+  )
+}
+
+// Pure builder: vendor PO-age rollup from already-fetched rows.
+export function buildVendorsRadar(
+  vendors: VendorRow[],
+  pos: PurchaseOrderRow[]
+): VendorsRadar {
   const now = new Date()
   const overdueCutoff = new Date(now)
   overdueCutoff.setDate(overdueCutoff.getDate() - OVERDUE_PO_DAYS)
@@ -418,16 +458,103 @@ export async function getVendorsRadar(): Promise<VendorsRadar> {
   }
 }
 
+// All four radars in one request (M8): batches and stock are
+// fetched ONCE and shared — the old page loaded getStockRadar
+// directly and again inside getInventoryRadar, so stock was
+// computed twice per /radars visit. The dashboard uses
+// getRadarSummary (below) with its own precomputed stock and
+// batches instead of this bundle.
+export interface RadarsBundle {
+  expiry: ExpiryRadar
+  stock: StockRadar
+  inventory: InventoryRadar
+  vendors: VendorsRadar
+}
+
+export async function getRadarsBundle(): Promise<RadarsBundle> {
+  const profile = await requireRadarAccess()
+  const supabase = await createClient()
+
+  const [
+    { rows: allBatches },
+    stockLevels,
+    { data: vendors, error: vendorError },
+    { data: pos, error: poError },
+  ] = await Promise.all([
+    getBatches(profile.organization_id, { limit: 5000 }),
+    getStockLevels(),
+    supabase
+      .from('vendors')
+      .select('id, name, contact_person, phone, email, is_active')
+      .eq('organization_id', profile.organization_id)
+      .order('name', { ascending: true }),
+    supabase
+      .from('purchase_orders')
+      .select('id, vendor_id, status, created_at, total_amount')
+      .eq('organization_id', profile.organization_id)
+      .order('created_at', { ascending: false }),
+  ])
+
+  if (vendorError) throw new Error(vendorError.message)
+  if (poError) throw new Error(poError.message)
+
+  const expiry = buildExpiryRadar((allBatches || []) as BatchRow[])
+  const stock = buildStockRadar(stockLevels)
+  // Inventory reuses the stock radar computed above (its only
+  // stock use is the negative-stock list) instead of fetching
+  // stock a second time.
+  const inventory = await getInventoryRadar(stock)
+  const vendorsRadar = buildVendorsRadar(
+    (vendors || []) as VendorRow[],
+    (pos || []) as PurchaseOrderRow[]
+  )
+
+  return { expiry, stock, inventory, vendors: vendorsRadar }
+}
+
 // Compact numbers for the alert strip on /dashboard. Reuses the three
 // radar actions so the strip can never disagree with the /radars page.
 // Each delegated action requires the caller's profile and org scope,
 // so the summary is gated and scoped the same way.
-export async function getRadarSummary(): Promise<RadarSummary> {
-  const [expiry, stock, vendors] = await Promise.all([
-    getExpiryRadar(),
-    getStockRadar(),
-    getVendorsRadar(),
-  ])
+//
+// Callers that already hold stock levels / batches (the dashboard,
+// which fetched both for its own cards) pass them in, so the
+// summary does not fetch the same datasets a second time (M8).
+export async function getRadarSummary(precomputed?: {
+  stockLevels?: StockLevelRow[]
+  batches?: BatchRow[]
+}): Promise<RadarSummary> {
+  const profile = await requireRadarAccess()
+  const supabase = await createClient()
+
+  const stockLevels = precomputed?.stockLevels ?? (await getStockLevels())
+  const stock = buildStockRadar(stockLevels)
+
+  const [{ rows: allBatches }, { data: vendors, error: vendorError }, { data: pos, error: poError }] =
+    await Promise.all([
+      precomputed?.batches
+        ? Promise.resolve({ rows: precomputed.batches })
+        : getBatches(profile.organization_id, { limit: 5000 }),
+      supabase
+        .from('vendors')
+        .select('id, name, contact_person, phone, email, is_active')
+        .eq('organization_id', profile.organization_id)
+        .order('name', { ascending: true }),
+      supabase
+        .from('purchase_orders')
+        .select('id, vendor_id, status, created_at, total_amount')
+        .eq('organization_id', profile.organization_id)
+        .order('created_at', { ascending: false }),
+    ])
+
+  if (vendorError) throw new Error(vendorError.message)
+  if (poError) throw new Error(poError.message)
+
+  const expiry = buildExpiryRadar((allBatches || []) as BatchRow[])
+  const vendorsRadar = buildVendorsRadar(
+    (vendors || []) as VendorRow[],
+    (pos || []) as PurchaseOrderRow[]
+  )
 
   return {
     expiringWithin180Days: expiry.expiringWithin180Days,
@@ -435,7 +562,7 @@ export async function getRadarSummary(): Promise<RadarSummary> {
     expired: expiry.counts.EXPIRED,
     outOfStock: stock.counts.OUT_OF_STOCK,
     lowStock: stock.counts.LOW,
-    pendingPOs: vendors.totalPendingPOs,
-    overduePOs: vendors.vendors.reduce((sum, v) => sum + v.overdue_pos, 0),
+    pendingPOs: vendorsRadar.totalPendingPOs,
+    overduePOs: vendorsRadar.vendors.reduce((sum, v) => sum + v.overdue_pos, 0),
   }
 }

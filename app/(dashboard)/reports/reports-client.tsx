@@ -205,6 +205,11 @@ export function ReportsClient({ data }: { data: any }) {
                     ))}
                   </TableBody>
                 </Table>
+                {salesMetrics.topProductsTruncated && (
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Ranked from the newest 500 sale lines only — older sales are not included.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>

@@ -4,6 +4,16 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserProfile } from '@/lib/auth-utils'
 import { getStockLevels, getBatches } from '@/app/actions/inventory'
 import { getTasks } from '@/app/actions/tasks'
+import {
+  buildExpiryRadar,
+  buildStockRadar,
+  buildVendorsRadar,
+  type BatchRow,
+  type PurchaseOrderRow,
+  type RadarSummary,
+  type StockLevelRow,
+  type VendorRow,
+} from '@/app/actions/radars'
 
 export async function getCheeseCommandCenterData() {
   const [profile, supabase] = await Promise.all([
@@ -40,7 +50,9 @@ export async function getCheeseCommandCenterData() {
     weekSalesRes,
     recentSalesRes,
     saleItemsRes,
-    allTasks
+    allTasks,
+    vendorsRes,
+    posRes
   ] = await Promise.all([
     getStockLevels(),
     getBatches(),
@@ -80,14 +92,30 @@ export async function getCheeseCommandCenterData() {
       .limit(6),
     // sale_items has no organization_id column of its own, so it is
     // scoped through its parent sale (inner join: rows whose sale
-    // is in another org never reach the client).
+    // is in another org never reach the client). The query is capped
+    // at 300 rows — topProductsTruncated below says so instead of
+    // silently ranking a partial history (QA audit M11).
     supabase
       .from('sale_items')
-      .select('quantity, subtotal, products (id, name, sku), sales!inner(organization_id)')
+      .select('quantity, subtotal, products (id, name, sku), sales!inner(organization_id)', { count: 'exact' })
       .eq('sales.organization_id', orgId)
       .order('id', { ascending: false })
       .limit(300),
-    getTasks()
+    getTasks(),
+    // Vendors + POs for the radar summary, fetched here so the
+    // dashboard does not load them a second time via
+    // getRadarSummary (M8: stock + batches were loaded twice per
+    // dashboard visit — once here, once inside the summary).
+    supabase
+      .from('vendors')
+      .select('id, name, contact_person, phone, email, is_active')
+      .eq('organization_id', orgId)
+      .order('name', { ascending: true }),
+    supabase
+      .from('purchase_orders')
+      .select('id, vendor_id, status, created_at, total_amount')
+      .eq('organization_id', orgId)
+      .order('created_at', { ascending: false }),
   ])
 
   // 1. Calculate Monthly & Today's Sales
@@ -184,7 +212,9 @@ export async function getCheeseCommandCenterData() {
   const lowStockCount = stockList.filter((p: any) => p.status === 'Low Stock' || p.status === 'Out of Stock').length
 
   // 6. Batches & Expiring Alerts (computed from single allBatches query)
-  const batchList = allBatches || []
+  // Batches arrive ordered by expiry first, so the 500-row page
+  // still holds the nearest-expiring batches.
+  const batchList = allBatches.rows || []
   const nowTime = new Date().getTime()
   const expiringBatchesList = batchList
     .filter((b: any) => {
@@ -211,13 +241,41 @@ export async function getCheeseCommandCenterData() {
     })
 
   // 7. Active Tasks
-  const taskList = allTasks || []
+  const taskList = allTasks.rows || []
   const activeTasks = taskList
     .filter((t: any) => t.status !== 'DONE')
     .slice(0, 5)
 
+  // Radar summary from the stock + batches already fetched above
+  // (M8): the dashboard used to call getRadarSummary() afterwards,
+  // which re-fetched both datasets. Employees get no summary.
+  const role = profile?.role || 'employee'
+  let radarSummary: RadarSummary | null = null
+  if (role !== 'employee') {
+    const expiry = buildExpiryRadar((batchList || []) as BatchRow[])
+    const stock = buildStockRadar((stockList || []) as StockLevelRow[])
+    const vendorsRadar = buildVendorsRadar(
+      ((vendorsRes.data || []) as VendorRow[]),
+      ((posRes.data || []) as PurchaseOrderRow[])
+    )
+    radarSummary = {
+      expiringWithin180Days: expiry.expiringWithin180Days,
+      urgent30Days: expiry.counts.URGENT + expiry.counts.EXPIRED,
+      expired: expiry.counts.EXPIRED,
+      outOfStock: stock.counts.OUT_OF_STOCK,
+      lowStock: stock.counts.LOW,
+      pendingPOs: vendorsRadar.totalPendingPOs,
+      overduePOs: vendorsRadar.vendors.reduce((sum, v) => sum + v.overdue_pos, 0),
+    }
+  }
+
   return {
-    role: profile?.role || 'employee',
+    role,
+    radarSummary,
+    // True when the top-products ranking only saw the newest 300
+    // sale_items (M11): the dashboard says so instead of ranking
+    // a partial history silently.
+    topProductsTruncated: (saleItemsRes.count ?? 0) > 300,
     user_name: profile?.full_name || 'Staff Member',
     stats: {
       lowStock: lowStockCount,

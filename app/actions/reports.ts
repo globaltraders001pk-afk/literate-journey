@@ -29,7 +29,7 @@ export async function getComprehensiveReports() {
       .order('created_at', { ascending: false }),
     supabase
       .from('sale_items')
-      .select('quantity, subtotal, products(name, cost_price)')
+      .select('quantity, subtotal, products(name, cost_price)', { count: 'exact' })
       .order('id', { ascending: false })
       .limit(500),
     supabase
@@ -208,7 +208,11 @@ export async function getComprehensiveReports() {
       month: { total: monthSalesTotal, count: monthSalesCount },
       allTimeTotal: allSales?.reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0) || 0,
       dailyTrend,
-      topSellingProducts
+      topSellingProducts,
+      // The top-products / COGS math only saw the newest 500 sale
+      // lines (M11): the report says so instead of presenting a
+      // partial history as complete.
+      topProductsTruncated: (saleItemsRes.count ?? 0) > 500,
     },
     stockMetrics: {
       stockInTotal,

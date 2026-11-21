@@ -1,11 +1,6 @@
 import { Suspense } from 'react'
 import { checkAccess } from '@/lib/auth-utils'
-import {
-  getExpiryRadar,
-  getStockRadar,
-  getInventoryRadar,
-  getVendorsRadar,
-} from '@/app/actions/radars'
+import { getRadarsBundle } from '@/app/actions/radars'
 import { RadarsClient } from './radars-client'
 import RadarsLoading from './loading'
 
@@ -21,12 +16,9 @@ async function RadarsDataLoader() {
   // Radars are for owner / admin / manager only.
   await checkAccess(['owner', 'admin', 'manager'])
 
-  const [expiry, stock, inventory, vendors] = await Promise.all([
-    getExpiryRadar(),
-    getStockRadar(),
-    getInventoryRadar(),
-    getVendorsRadar(),
-  ])
+  // One bundle: batches and stock are fetched once and shared
+  // between the tabs (M8) instead of being loaded twice.
+  const { expiry, stock, inventory, vendors } = await getRadarsBundle()
 
   return (
     <RadarsClient expiry={expiry} stock={stock} inventory={inventory} vendors={vendors} />

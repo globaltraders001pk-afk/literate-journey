@@ -36,7 +36,7 @@ import type { RadarSummary } from '@/app/actions/radars'
 type DashboardData = Awaited<ReturnType<typeof getCheeseCommandCenterData>>
 
 export function DashboardClient({ data, radarSummary }: { data: DashboardData; radarSummary?: RadarSummary | null }) {
-  const { role, user_name, stats, dailyTrend, recentSales, topCheeses, lowStockItems, expiringBatches, activeTasks } = data
+  const { role, user_name, stats, dailyTrend, recentSales, topCheeses, lowStockItems, expiringBatches, activeTasks, topProductsTruncated } = data
   const isEmployee = role === 'employee'
   const isManager = role === 'manager'
   const isAdminOrOwner = role === 'admin' || role === 'owner'
@@ -421,6 +421,11 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
                         </div>
                       ))}
                     </div>
+                    {topProductsTruncated && (
+                      <p className="text-[11px] text-muted-foreground mt-2">
+                        Ranked from the newest 300 sale lines only — older sales are not included.
+                      </p>
+                    )}
                   </div>
                 )}
               </CardContent>
