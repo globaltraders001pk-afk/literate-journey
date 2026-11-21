@@ -7,15 +7,23 @@
 // /radars tabs and the dashboard strip), so they belong in lib.
 // The server actions in app/actions/radars.ts stay thin wrappers
 // that fetch + call these.
+//
+// Days-left and "urgent" come from lib/dates.ts (QA audit M5):
+// the strip and the dashboard KPI used to compute them differently
+// and disagree by a day near midnight. There is one definition
+// now — daysUntil() + isUrgentExpiry() — and every consumer here
+// and in dashboard.ts uses it.
+import { daysUntil, isUrgentExpiry } from './dates'
 
 // Expiry bands (days left until expiry_date, counted from start of today)
-const EXPIRY_URGENT_DAYS = 30
 const EXPIRY_WARNING_DAYS = 120 // 4 months
 const EXPIRY_WATCH_DAYS = 180 // 6 months
 
 // Fallback low-stock level, used only when a product has no
-// minimum_stock_level set. products.minimum_stock_level exists in the
-// schema (see createProduct / getStockLevels in inventory.ts).
+// minimum_stock_level set — including a stored 0, which is what
+// createProduct / updateProduct store when unset (QA audit M3).
+// The schema default is 0, so "0 means unset" is the only rule
+// under which the LOW band can ever fire.
 const LOW_STOCK_THRESHOLD = 10
 
 // A pending purchase order older than this is flagged overdue.
@@ -36,6 +44,10 @@ export interface ExpiryRadarBatch {
 export interface ExpiryRadar {
   counts: Record<ExpiryBand, number>
   expiringWithin180Days: number
+  /** Batches with stock left, any band (incl. HEALTHY and no-expiry)
+   * — so the empty state can tell "no batches at all" apart from
+   * "batches exist, none expiring within 180 days" (QA audit L8). */
+  totalBatchesWithStock: number
   batches: ExpiryRadarBatch[]
 }
 
@@ -67,6 +79,11 @@ export interface VendorRadarVendor {
   overdue_pos: number
   last_order_date: string | null
   has_overdue: boolean
+  /** Value of goods ordered from this vendor but not yet received
+   * (QA audit M6): for each pending PO, the unreceived share of
+   * its lines (qty − received_qty) × unit_price, or the PO total
+   * when the PO has no lines. Received / cancelled POs owe 0. */
+  outstandingPayable: number
 }
 
 export interface VendorsRadar {
@@ -74,6 +91,12 @@ export interface VendorsRadar {
   activeVendors: number
   totalPendingPOs: number
   vendorsWithOverdue: number
+  /** Sum of outstandingPayable across vendors (same definition). */
+  totalOutstandingPayable: number
+  /** POs whose status is in none of the known sets below: they are
+   * counted as pending (fail-visible) and surfaced in the UI
+   * instead of silently assuming a meaning (QA audit L8). */
+  unknownStatusPOs: number
   vendors: VendorRadarVendor[]
 }
 
@@ -112,17 +135,27 @@ export interface PurchaseOrderRow {
   total_amount: number | null
 }
 
-function daysUntil(dateStr: string): number {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const expiry = new Date(dateStr)
-  expiry.setHours(0, 0, 0, 0)
-  return Math.round((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+export interface PurchaseOrderItemRow {
+  po_id: string
+  quantity: number | null
+  unit_price: number | null
+  received_quantity: number | null
 }
+
+// PO status vocabulary (QA audit L8). Only 'sent' and 'received'
+// exist in the app today (create → 'sent', receive → 'received');
+// 'pending' / 'ordered' / 'draft' are accepted as pending so a
+// future status, or one set directly in the DB, is not
+// misclassified. 'cancelled' is terminal even though no cancel
+// flow exists in the UI yet — a PO cancelled directly in the DB
+// must not count as pending or payable. Anything else is unknown:
+// counted as pending (fail-visible) and reported separately.
+const PENDING_PO_STATUSES = ['sent', 'pending', 'ordered', 'draft']
+const TERMINAL_PO_STATUSES = ['received', 'cancelled']
 
 function expiryBand(daysLeft: number): ExpiryBand {
   if (daysLeft < 0) return 'EXPIRED'
-  if (daysLeft < EXPIRY_URGENT_DAYS) return 'URGENT'
+  if (isUrgentExpiry(daysLeft)) return 'URGENT'
   if (daysLeft < EXPIRY_WARNING_DAYS) return 'WARNING_4M'
   if (daysLeft <= EXPIRY_WATCH_DAYS) return 'WATCH_6M'
   return 'HEALTHY'
@@ -142,8 +175,11 @@ export function buildExpiryRadar(allBatches: BatchRow[]): ExpiryRadar {
 
   // Only batches with stock left can expire on the shelf; fully consumed
   // batches (quantity_remaining <= 0) are excluded, as in dashboard.ts.
-  const batches: ExpiryRadarBatch[] = ((allBatches || []) as BatchRow[])
-    .filter((b): b is BatchRow & { expiry_date: string } => Boolean(b.expiry_date) && Number(b.quantity_remaining) > 0)
+  const batchesWithStock = ((allBatches || []) as BatchRow[]).filter(
+    (b) => Number(b.quantity_remaining) > 0
+  )
+  const batches: ExpiryRadarBatch[] = batchesWithStock
+    .filter((b): b is BatchRow & { expiry_date: string } => Boolean(b.expiry_date))
     .map((b) => {
       const daysLeft = daysUntil(b.expiry_date)
       const band = expiryBand(daysLeft)
@@ -166,6 +202,7 @@ export function buildExpiryRadar(allBatches: BatchRow[]): ExpiryRadar {
     counts,
     expiringWithin180Days:
       counts.EXPIRED + counts.URGENT + counts.WARNING_4M + counts.WATCH_6M,
+    totalBatchesWithStock: batchesWithStock.length,
     batches,
   }
 }
@@ -191,12 +228,17 @@ export function buildStockRadar(stockLevels: StockLevelRow[]): StockRadar {
 
   const products: StockRadarProduct[] = (stockLevels || []).map((p) => {
     const currentStock = Number(p.current_stock) || 0
-    // products.minimum_stock_level exists; fall back to the constant only
-    // when it is null / undefined.
+    // A stored 0 counts as unset (QA audit M3): createProduct stores
+    // 0 when no minimum is given, and the schema default is 0 — so
+    // the 10 fallback applies to null, undefined AND 0. Without this
+    // the LOW band could never fire (threshold 0 is already out of
+    // stock). The returned minimum_stock_level is the EFFECTIVE
+    // threshold, so the UI shows 10 for an unset minimum.
+    const rawMin = p.minimum_stock_level
     const threshold =
-      p.minimum_stock_level === null || p.minimum_stock_level === undefined
+      rawMin === null || rawMin === undefined || Number(rawMin) === 0
         ? LOW_STOCK_THRESHOLD
-        : Number(p.minimum_stock_level) || 0
+        : Number(rawMin)
     const status: StockStatus =
       currentStock <= 0 ? 'OUT_OF_STOCK' : currentStock <= threshold ? 'LOW' : 'HEALTHY'
     counts[status] += 1
@@ -218,17 +260,44 @@ export function buildStockRadar(stockLevels: StockLevelRow[]): StockRadar {
 }
 
 // Pure builder: vendor PO-age rollup from already-fetched rows.
+// "Overdue" is PO age only — purchase_orders has no due date —
+// and the payable math below is the value of goods ordered but
+// not yet received (M6), not a due-date aging.
 export function buildVendorsRadar(
   vendors: VendorRow[],
-  pos: PurchaseOrderRow[]
+  pos: PurchaseOrderRow[],
+  poItems: PurchaseOrderItemRow[] = []
 ): VendorsRadar {
   const now = new Date()
   const overdueCutoff = new Date(now)
   overdueCutoff.setDate(overdueCutoff.getDate() - OVERDUE_PO_DAYS)
 
-  // A PO is pending / unreceived while its status is anything other than
-  // 'received' (sent / ordered / draft / pending) and not 'cancelled'.
-  const isPending = (status: string) => status !== 'received' && status !== 'cancelled'
+  // A PO is pending while its status is an open one. Unknown
+  // statuses count as pending too (fail-visible) and are reported
+  // separately instead of being silently assumed.
+  const isTerminal = (status: string) => TERMINAL_PO_STATUSES.includes(status)
+  const isPending = (status: string) => !isTerminal(status)
+  const isUnknownStatus = (status: string) =>
+    !PENDING_PO_STATUSES.includes(status) && !TERMINAL_PO_STATUSES.includes(status)
+
+  // Outstanding amount of one PO: the unreceived share of its
+  // lines. A PO with no lines falls back to its header total.
+  const outstandingOf = (po: PurchaseOrderRow): number => {
+    if (isTerminal(po.status)) return 0
+    const lines = poItems.filter((it) => it.po_id === po.id)
+    if (lines.length === 0) return Number(po.total_amount) || 0
+    return lines.reduce((sum, it) => {
+      const unreceived = Math.max(
+        0,
+        (Number(it.quantity) || 0) - (Number(it.received_quantity) || 0)
+      )
+      return sum + unreceived * (Number(it.unit_price) || 0)
+    }, 0)
+  }
+
+  const unknownStatusPOs = ((pos || []) as PurchaseOrderRow[]).filter((po) =>
+    isUnknownStatus(po.status)
+  ).length
 
   const vendorList: VendorRadarVendor[] = ((vendors || []) as VendorRow[]).map((v) => {
     const vendorPOs = ((pos || []) as PurchaseOrderRow[]).filter((po) => po.vendor_id === v.id)
@@ -248,6 +317,7 @@ export function buildVendorsRadar(
       overdue_pos: overduePOs.length,
       last_order_date: vendorPOs[0]?.created_at ?? null,
       has_overdue: overduePOs.length > 0,
+      outstandingPayable: pendingPOs.reduce((sum, po) => sum + outstandingOf(po), 0),
     }
   })
 
@@ -259,6 +329,8 @@ export function buildVendorsRadar(
     activeVendors: vendorList.filter((v) => v.is_active).length,
     totalPendingPOs: vendorList.reduce((sum, v) => sum + v.pending_pos, 0),
     vendorsWithOverdue: vendorList.filter((v) => v.has_overdue).length,
+    totalOutstandingPayable: vendorList.reduce((sum, v) => sum + v.outstandingPayable, 0),
+    unknownStatusPOs,
     vendors: vendorList,
   }
 }
