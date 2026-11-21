@@ -54,9 +54,6 @@ Always format your responses in a clean, executive, highly-structured Markdown p
 
 Keep the response crisp, professional, and visually structured.`
 
-// Loose JSON value: tool schemas are untyped JSON from the tool table.
-type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
-
 function cleanJsonSchema(schema: unknown): unknown {
   if (!schema || typeof schema !== 'object') return schema
   if (Array.isArray(schema)) return schema.map(cleanJsonSchema)

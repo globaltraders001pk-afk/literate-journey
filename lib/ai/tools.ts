@@ -1,14 +1,21 @@
+// One tool parameter: `items` is the element shape of an ARRAY
+// param (e.g. the items of a checkout), `properties` the fields
+// of an OBJECT param — both recursive.
+export interface ToolParameter {
+  type: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'INTEGER' | 'ARRAY' | 'OBJECT' | 'string' | 'number' | 'boolean' | 'integer' | 'array' | 'object'
+  description?: string
+  enum?: string[]
+  items?: ToolParameter
+  properties?: Record<string, ToolParameter>
+  required?: string[]
+}
+
 export interface ToolDeclaration {
   name: string
   description: string
   parameters: {
     type: 'OBJECT' | 'object'
-    properties: Record<string, {
-      type: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'INTEGER' | 'ARRAY' | 'OBJECT' | 'string' | 'number' | 'boolean' | 'integer' | 'array' | 'object'
-      description: string
-      enum?: string[]
-      items?: any
-    }>
+    properties: Record<string, ToolParameter>
     required?: string[]
   }
 }

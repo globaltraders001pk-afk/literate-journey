@@ -6,7 +6,7 @@ export interface ToolExecutionResult {
   success: boolean
   action: string
   details: string
-  data?: any
+  data?: unknown
   // Set when a financial write was NOT executed: the details hold
   // a human-readable preview and the owner must confirm before
   // the tool is called again with confirm: true.
@@ -178,7 +178,7 @@ export async function executeErpTool(
         }
 
         const target = products[0]
-        const updates: Record<string, any> = {}
+        const updates: Record<string, unknown> = {}
         if (new_name) updates.name = new_name.trim()
         if (cost_price !== undefined) updates.cost_price = Number(cost_price)
         if (selling_price !== undefined) updates.selling_price = Number(selling_price)
@@ -335,8 +335,19 @@ export async function executeErpTool(
 
         const { data: products } = await query
 
-        const itemsWithStock = (products || []).map((p: any) => {
-          const currentStock = (p.inventory_movements || []).reduce((acc: number, m: any) => acc + (m.quantity || 0), 0)
+        // The select shape is pinned here: supabase-js infers the
+        // embedded relations as arrays, but this query's
+        // many-to-one embeds arrive as single objects.
+        const itemsWithStock = ((products || []) as Array<{
+          name: string
+          sku: string
+          selling_price: number
+          cost_price: number
+          minimum_stock_level: number
+          categories?: { name?: string | null } | null
+          inventory_movements?: Array<{ quantity?: number | null }> | null
+        }>).map((p) => {
+          const currentStock = (p.inventory_movements || []).reduce((acc: number, m: { quantity?: number | null }) => acc + (m.quantity || 0), 0)
           return {
             name: p.name,
             sku: p.sku,
@@ -405,7 +416,7 @@ export async function executeErpTool(
         }
 
         const target = vendors[0]
-        const updates: Record<string, any> = {}
+        const updates: Record<string, unknown> = {}
         if (phone) updates.phone = phone
         if (email) updates.email = email
         if (contact_person) updates.contact_person = contact_person
@@ -1064,7 +1075,7 @@ export async function executeErpTool(
       // ==================== ORGANIZATION SETTINGS ====================
       case 'update_organization_info': {
         const { name, phone, email, address } = args
-        const updates: Record<string, any> = {}
+        const updates: Record<string, unknown> = {}
 
         if (name) updates.name = name.trim()
         if (phone) updates.phone = phone.trim()
@@ -1369,7 +1380,7 @@ export async function executeErpTool(
         const { data: sales, error: salesError } = await query
         if (salesError) throw new Error(salesError.message)
 
-        const totalRevenue = (sales || []).reduce((acc: number, s: any) => acc + Number(s.total_amount || 0), 0)
+        const totalRevenue = (sales || []).reduce((acc: number, s: { total_amount?: number | null }) => acc + Number(s.total_amount || 0), 0)
         const totalTransactions = sales?.length || 0
         const periodLabel = days ? `past ${days} days` : period
 
@@ -1393,12 +1404,12 @@ export async function executeErpTool(
           details: `Tool "${toolName}" is not registered in the ERP executor.`
         }
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(`Error executing ERP tool "${toolName}":`, err)
     return {
       success: false,
       action: 'Execution Failed',
-      details: `Failed to execute ${toolName}: ${err?.message || 'Internal database error'}`
+      details: `Failed to execute ${toolName}: ${err instanceof Error ? err.message : 'Internal database error'}`
     }
   }
 }
