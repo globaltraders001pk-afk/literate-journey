@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { ilikeContains, orIlike } from '@/lib/ai/ilike'
+import { escapeIlikePattern, ilikeContains, orIlike } from '@/lib/ai/ilike'
 
 export interface ToolExecutionResult {
   success: boolean
@@ -102,7 +102,7 @@ export async function executeErpTool(
             .from('categories')
             .select('id')
             .eq('organization_id', orgId)
-            .ilike('name', category_name.trim())
+            .ilike('name', escapeIlikePattern(category_name.trim()))
             .limit(1)
             .single()
 
@@ -892,7 +892,7 @@ export async function executeErpTool(
             .from('expense_categories')
             .select('id')
             .eq('organization_id', orgId)
-            .ilike('name', category_name.trim())
+            .ilike('name', escapeIlikePattern(category_name.trim()))
             .limit(1)
             .single()
 
