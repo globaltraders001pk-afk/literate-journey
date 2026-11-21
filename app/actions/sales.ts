@@ -116,10 +116,10 @@ export async function processCheckout(
 
   // Auth gate (QA audit C3: sales.ts had zero checkAccess calls).
   // Every signed-in role may sell at the POS — this is the
-  // signed-out redirect, not a role restriction.
-  let profile: { id: string; organization_id: string }
+  // signed-out redirect, not a role restriction. The org is
+  // derived from the JWT inside the RPC, not from this profile.
   try {
-    profile = await checkAccess(['owner', 'admin', 'manager', 'employee'])
+    await checkAccess(['owner', 'admin', 'manager', 'employee'])
   } catch (err) {
     if (isRedirectError(err)) throw err
     return { error: 'Unauthorized' }

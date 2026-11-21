@@ -253,7 +253,9 @@ export function buildExpiryRadar(allBatches: BatchRow[]): ExpiryRadar {
 }
 
 export async function getStockRadar(): Promise<StockRadar> {
-  const profile = await requireRadarAccess()
+  // Gate only: the stock RPC derives the org from the caller's
+  // own JWT, so no profile value is needed here.
+  await requireRadarAccess()
   // Stock now comes from the Postgres aggregate (getStockLevels
   // calls public.get_stock_levels), not a JS sum over history.
   const stockLevels = await getStockLevels()
