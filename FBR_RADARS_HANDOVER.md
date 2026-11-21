@@ -2,8 +2,8 @@
 
 **Repo:** `github.com/muhammad-araf/pos-system-aiagent` (package `qurbat-erp`)
 **Built:** 2026-11-16 · **Pushed:** 2026-11-22 to both remotes (`origin` and
-`globaltraders`) at `9eba2ad` · **Local HEAD:** `b67b609` (Phase 3b — AI chat
-safety, lint, login hardening, docs — plus six follow-up fix-ups, local only, not yet pushed).
+`globaltraders`) at `36c5deb` · **Local HEAD:** `36c5deb` (full fix program + six
+follow-up fix-ups).
 **Client:** medical / pharma business (name + email not provided yet). Finance software kept as-is; these two additions only.
 **Deadline:** 2 days, by 2026-11-18.
 
