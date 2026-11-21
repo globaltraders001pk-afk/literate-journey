@@ -1,7 +1,9 @@
 # FBR Invoice + Four Radars — Handover
 
 **Repo:** `github.com/muhammad-araf/pos-system-aiagent` (package `qurbat-erp`)
-**Built:** 2026-11-16 · **HEAD:** `3d2ba7e` ("Halo") · **Local only — nothing committed, nothing pushed.**
+**Built:** 2026-11-16 · **Pushed:** 2026-11-22 to both remotes (`origin` and
+`globaltraders`) at `9eba2ad` · **Local HEAD:** `7151e93` (Phase 3b — AI chat
+safety, lint, login hardening, docs — in progress, local only, not yet pushed).
 **Client:** medical / pharma business (name + email not provided yet). Finance software kept as-is; these two additions only.
 **Deadline:** 2 days, by 2026-11-18.
 
