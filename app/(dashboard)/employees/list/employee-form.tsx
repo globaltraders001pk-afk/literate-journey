@@ -89,7 +89,7 @@ export function EmployeeForm({ initialData }: { initialData?: any }) {
                 </Select>
               </div>
               <div className="grid gap-2 col-span-1">
-                <Label htmlFor="base_salary">Base Salary ($)</Label>
+                <Label htmlFor="base_salary">Base Salary (Rs)</Label>
                 <Input id="base_salary" name="base_salary" type="number" step="0.01" required defaultValue={initialData?.base_salary} />
               </div>
             </div>

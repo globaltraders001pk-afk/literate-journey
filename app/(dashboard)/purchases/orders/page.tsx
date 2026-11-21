@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { PurchaseForm } from './purchase-form'
 import { ReceiveButton } from './receive-button'
+import { formatPKR } from '@/lib/format-currency'
 
 export default async function PurchaseOrdersPage() {
   const [orders, vendors, products] = await Promise.all([
@@ -58,7 +59,7 @@ export default async function PurchaseOrdersPage() {
                     <TableCell>
                       {item ? `${item.quantity}x ${item.products?.name}` : 'No items'}
                     </TableCell>
-                    <TableCell>${po.total_amount}</TableCell>
+                    <TableCell>{formatPKR(po.total_amount)}</TableCell>
                     <TableCell>
                       <Badge variant={po.status === 'received' ? 'default' : 'secondary'}>
                         {po.status.toUpperCase()}

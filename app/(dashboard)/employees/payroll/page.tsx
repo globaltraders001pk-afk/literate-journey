@@ -6,6 +6,7 @@ import { GeneratePayrollButton } from './generate-payroll-button'
 import { PayButton } from './pay-button'
 
 import { checkAccess } from '@/lib/auth-utils'
+import { formatPKR } from '@/lib/format-currency'
 
 export default async function PayrollPage({
   searchParams,
@@ -59,9 +60,9 @@ export default async function PayrollPage({
               {payrolls?.map((p: any) => (
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.employees?.first_name} {p.employees?.last_name}</TableCell>
-                  <TableCell>${p.basic_salary}</TableCell>
-                  <TableCell className="text-destructive">-${p.deductions}</TableCell>
-                  <TableCell className="font-semibold text-foreground">${p.net_salary}</TableCell>
+                  <TableCell>{formatPKR(p.basic_salary)}</TableCell>
+                  <TableCell className="text-destructive">-{formatPKR(p.deductions)}</TableCell>
+                  <TableCell className="font-semibold text-foreground">{formatPKR(p.net_salary)}</TableCell>
                   <TableCell>
                     {p.status === 'paid' 
                       ? <Badge variant="default">PAID</Badge>

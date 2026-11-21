@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import Link from 'next/link'
+import { formatPKR } from '@/lib/format-currency'
 import { 
   ShoppingCart, 
   Package, 
@@ -174,7 +175,7 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-foreground">
-                ${stats.currentMonthSales.toFixed(2)}
+                {formatPKR(stats.currentMonthSales)}
               </div>
               <div className="flex items-center justify-between mt-1 text-xs">
                 <span className={`flex items-center font-medium ${stats.salesGrowth >= 0 ? 'text-emerald-600' : 'text-destructive'}`}>
@@ -182,7 +183,7 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
                   {Math.abs(stats.salesGrowth).toFixed(1)}% vs last mo.
                 </span>
                 <span className="text-muted-foreground">
-                  Today: <strong className="text-foreground">${stats.todaySalesTotal.toFixed(2)}</strong>
+                  Today: <strong className="text-foreground">{formatPKR(stats.todaySalesTotal)}</strong>
                 </span>
               </div>
             </CardContent>
@@ -353,7 +354,7 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
                       <div key={d.date} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
                         <span className="text-[11px] font-semibold text-muted-foreground group-hover:text-primary transition-colors">
                           {isAdminOrOwner 
-                            ? `$${d.amount > 0 ? d.amount.toFixed(0) : '0'}` 
+                            ? formatPKR(d.amount) 
                             : `${d.count}`}
                         </span>
                         <div 
@@ -410,7 +411,7 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
                           </div>
                           <div className="text-right">
                             {isAdminOrOwner ? (
-                              <p className="font-semibold text-foreground">${cheese.revenue.toFixed(2)}</p>
+                              <p className="font-semibold text-foreground">{formatPKR(cheese.revenue)}</p>
                             ) : (
                               <Badge variant="outline" className="text-[11px] bg-primary/10 text-primary border-primary/20 font-medium">
                                 {cheese.quantity} sold
@@ -507,7 +508,7 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
                       <div className="text-right">
                         {isAdminOrOwner ? (
                           <div className="font-bold text-foreground text-sm">
-                            ${sale.total_amount.toFixed(2)}
+                            {formatPKR(sale.total_amount)}
                           </div>
                         ) : (
                           <div className="font-medium text-foreground">

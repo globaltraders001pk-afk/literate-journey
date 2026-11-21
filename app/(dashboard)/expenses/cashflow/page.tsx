@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DollarSign, TrendingDown, TrendingUp } from 'lucide-react'
+import { formatPKR } from '@/lib/format-currency'
 
 export default async function CashflowPage({
   searchParams,
@@ -62,7 +63,7 @@ export default async function CashflowPage({
             <TrendingUp className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-primary">${totalIncome.toFixed(2)}</div>
+            <div className="text-2xl font-semibold text-primary">{formatPKR(totalIncome)}</div>
           </CardContent>
         </Card>
         
@@ -72,7 +73,7 @@ export default async function CashflowPage({
             <TrendingDown className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold text-destructive">${totalOutflow.toFixed(2)}</div>
+            <div className="text-2xl font-semibold text-destructive">{formatPKR(totalOutflow)}</div>
           </CardContent>
         </Card>
 
@@ -83,7 +84,7 @@ export default async function CashflowPage({
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-semibold ${netProfit >= 0 ? 'text-primary' : 'text-destructive'}`}>
-              ${netProfit.toFixed(2)}
+              {formatPKR(netProfit)}
             </div>
           </CardContent>
         </Card>
@@ -108,13 +109,13 @@ export default async function CashflowPage({
                 return (
                   <TableRow key={idx}>
                     <TableCell className="font-medium">{catName || 'Uncategorized'}</TableCell>
-                    <TableCell className="text-right text-destructive font-mono">${Number(exp.amount).toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-destructive font-mono">{formatPKR(exp.amount)}</TableCell>
                   </TableRow>
                 )
               })}
               <TableRow>
                 <TableCell className="font-medium">Payroll (Paid)</TableCell>
-                <TableCell className="text-right text-destructive font-semibold font-mono">${totalPayroll.toFixed(2)}</TableCell>
+                <TableCell className="text-right text-destructive font-semibold font-mono">{formatPKR(totalPayroll)}</TableCell>
               </TableRow>
             </TableBody>
           </Table>

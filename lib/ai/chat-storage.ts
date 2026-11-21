@@ -93,7 +93,7 @@ const DEFAULT_SESSIONS: ChatSession[] = [
       {
         id: 's3-m2',
         role: 'assistant',
-        content: 'Total operational expenses recorded this month: **$3,420.00** across Utilities, Kitchen Supplies, and Maintenance.',
+        content: 'Total operational expenses recorded this month: **Rs 342,000.00** across Utilities, Kitchen Supplies, and Maintenance.',
         timestamp: 'Yesterday',
         actions: [
           {

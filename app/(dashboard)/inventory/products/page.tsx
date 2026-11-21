@@ -7,6 +7,7 @@ import { ProductForm } from './product-form'
 import { DeleteProductButton } from './delete-product-button'
 import { Badge } from '@/components/ui/badge'
 import ProductsLoading from './loading'
+import { formatPKR } from '@/lib/format-currency'
 
 export default function ProductsPage() {
   return (
@@ -68,9 +69,9 @@ async function ProductsDataLoader() {
                   <TableCell>{prod.categories?.name || '-'}</TableCell>
                   <TableCell className="text-muted-foreground text-xs">{prod.weight || '-'}</TableCell>
                   <TableCell className="font-mono text-xs">{prod.sku || '-'}</TableCell>
-                  <TableCell>${prod.selling_price}</TableCell>
+                  <TableCell>{formatPKR(prod.selling_price)}</TableCell>
                   {canViewCost && (
-                    <TableCell className="text-muted-foreground">${prod.cost_price}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatPKR(prod.cost_price)}</TableCell>
                   )}
                   <TableCell>
                     {prod.is_active ? <Badge>Active</Badge> : <Badge variant="secondary">Inactive</Badge>}

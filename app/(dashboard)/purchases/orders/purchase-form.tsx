@@ -71,7 +71,7 @@ export function PurchaseForm({ vendors, products }: { vendors: any[], products: 
                 <Input id="quantity" name="quantity" type="number" required min="1" placeholder="10" />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="unit_price">Unit Price ($)</Label>
+                <Label htmlFor="unit_price">Unit Price (Rs)</Label>
                 <Input id="unit_price" name="unit_price" type="number" step="0.01" required placeholder="5.00" />
               </div>
             </div>

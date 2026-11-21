@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { ExpenseForm } from './expense-form'
+import { formatPKR } from '@/lib/format-currency'
 
 export default async function ExpensesLedgerPage() {
   const [expenses, categories] = await Promise.all([
@@ -50,7 +51,7 @@ export default async function ExpensesLedgerPage() {
                   <TableCell className="font-medium">{new Date(exp.expense_date).toLocaleDateString()}</TableCell>
                   <TableCell>{exp.expense_categories?.name}</TableCell>
                   <TableCell>{exp.reference_number || '-'}</TableCell>
-                  <TableCell className="text-destructive font-semibold">${exp.amount}</TableCell>
+                  <TableCell className="text-destructive font-semibold">{formatPKR(exp.amount)}</TableCell>
                   <TableCell>
                     {exp.status === 'approved' 
                       ? <Badge variant="default">Approved</Badge>

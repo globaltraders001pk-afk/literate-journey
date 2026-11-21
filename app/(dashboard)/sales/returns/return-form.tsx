@@ -83,7 +83,7 @@ export function ReturnForm({ products, customers }: { products: any[], customers
                 <Input id="quantity" name="quantity" type="number" required min="1" defaultValue="1" />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="refund_amount">Refund Amount ($)</Label>
+                <Label htmlFor="refund_amount">Refund Amount (Rs)</Label>
                 <Input id="refund_amount" name="refund_amount" type="number" step="0.01" required placeholder="0.00" />
               </div>
             </div>

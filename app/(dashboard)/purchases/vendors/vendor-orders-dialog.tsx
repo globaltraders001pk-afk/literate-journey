@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { formatPKR } from '@/lib/format-currency'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -48,7 +49,7 @@ export function VendorOrdersDialog({ vendorId, vendorName }: { vendorId: string,
             </div>
             <div className="text-right">
               <span className="text-xs text-muted-foreground block">Total Spend</span>
-              <span className="text-base font-semibold text-primary">${totalSpent.toFixed(2)}</span>
+              <span className="text-base font-semibold text-primary">{formatPKR(totalSpent)}</span>
             </div>
           </div>
         </DialogHeader>
@@ -79,7 +80,7 @@ export function VendorOrdersDialog({ vendorId, vendorName }: { vendorId: string,
                         {new Date(po.created_at).toLocaleDateString()}
                       </span>
                       <span className="font-semibold text-foreground">
-                        ${parseFloat(po.total_amount).toFixed(2)}
+                        {formatPKR(po.total_amount)}
                       </span>
                     </div>
                   </div>
@@ -99,8 +100,8 @@ export function VendorOrdersDialog({ vendorId, vendorName }: { vendorId: string,
                           <TableRow key={item.id}>
                             <TableCell className="py-1 font-medium">{item.products?.name || 'Raw Material'}</TableCell>
                             <TableCell className="py-1 text-center">{item.quantity}</TableCell>
-                            <TableCell className="py-1 text-right">${parseFloat(item.unit_cost).toFixed(2)}</TableCell>
-                            <TableCell className="py-1 text-right font-medium">${parseFloat(item.subtotal).toFixed(2)}</TableCell>
+                            <TableCell className="py-1 text-right">{formatPKR(item.unit_cost)}</TableCell>
+                            <TableCell className="py-1 text-right font-medium">{formatPKR(item.subtotal)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

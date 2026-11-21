@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { processCheckout } from '@/app/actions/sales'
+import { formatPKR } from '@/lib/format-currency'
 import { useOrganization } from '@/components/providers/organization-provider'
 import Link from 'next/link'
 import { Minus, Plus, ShoppingCart, Trash2, Printer, CheckCircle2, Store, Loader2, FileText } from 'lucide-react'
@@ -238,7 +239,7 @@ export function POSClient({ products, customers }: { products: any[], customers:
               <Card key={product.id} className="cursor-pointer hover:border-primary transition-colors" onClick={() => addToCart(product)}>
                 <CardContent className="p-4 flex flex-col items-center text-center justify-center h-32">
                   <p className="font-semibold">{product.name}</p>
-                  <p className="text-muted-foreground">${product.selling_price}</p>
+                  <p className="text-muted-foreground">{formatPKR(product.selling_price)}</p>
                 </CardContent>
               </Card>
             ))}
@@ -271,7 +272,7 @@ export function POSClient({ products, customers }: { products: any[], customers:
                   <div key={item.product_id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm">
                     <div className="flex-1">
                       <p className="font-medium">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">${item.unit_price} each</p>
+                      <p className="text-xs text-muted-foreground">{formatPKR(item.unit_price)} each</p>
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -284,7 +285,7 @@ export function POSClient({ products, customers }: { products: any[], customers:
                           <Plus className="h-3 w-3" />
                         </Button>
                       </div>
-                      <div className="font-medium w-16 text-right">${item.subtotal.toFixed(2)}</div>
+                      <div className="font-medium w-16 text-right">{formatPKR(item.subtotal)}</div>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeFromCart(item.product_id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -331,7 +332,7 @@ export function POSClient({ products, customers }: { products: any[], customers:
             
             <div className="flex items-center justify-between py-2 border-t text-xl">
               <span className="font-medium">Total</span>
-              <span className="font-semibold text-primary">${total.toFixed(2)}</span>
+              <span className="font-semibold text-primary">{formatPKR(total)}</span>
             </div>
             
             <Button 
@@ -442,8 +443,8 @@ export function POSClient({ products, customers }: { products: any[], customers:
                       <tr key={idx} className="py-1.5">
                         <td className="py-1 font-medium text-foreground">{item.name}</td>
                         <td className="py-1 text-center text-muted-foreground">{item.quantity}</td>
-                        <td className="py-1 text-right text-muted-foreground">${item.unit_price.toFixed(2)}</td>
-                        <td className="py-1 text-right font-medium text-foreground">${item.subtotal.toFixed(2)}</td>
+                        <td className="py-1 text-right text-muted-foreground">{formatPKR(item.unit_price)}</td>
+                        <td className="py-1 text-right font-medium text-foreground">{formatPKR(item.subtotal)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -454,7 +455,7 @@ export function POSClient({ products, customers }: { products: any[], customers:
                 {/* Total */}
                 <div className="total-section flex items-center justify-between text-base font-semibold pt-1">
                   <span>Grand Total</span>
-                  <span className="text-primary font-mono">${completedSale.total.toFixed(2)}</span>
+                  <span className="text-primary font-mono">{formatPKR(completedSale.total)}</span>
                 </div>
 
                 {/* Footer Note */}

@@ -114,7 +114,7 @@ export async function executeErpTool(
         return {
           success: true,
           action: 'Product Created',
-          details: `Added "${product.name}" (SKU: ${product.sku}) with cost $${product.cost_price}, price $${product.selling_price}${initial_stock ? `, initial stock: ${initial_stock}` : ''}.`,
+          details: `Added "${product.name}" (SKU: ${product.sku}) with cost Rs ${product.cost_price}, price Rs ${product.selling_price}${initial_stock ? `, initial stock: ${initial_stock}` : ''}.`,
           data: product
         }
       }
@@ -439,7 +439,7 @@ export async function executeErpTool(
         return {
           success: true,
           action: 'Purchase Order Issued',
-          details: `Created ${po.po_number} to "${vendor.name}" for ${quantity} x "${product.name}" ($${unit_price} each). Total: $${totalAmount}.`,
+          details: `Created ${po.po_number} to "${vendor.name}" for ${quantity} x "${product.name}" (Rs ${unit_price} each). Total: Rs ${totalAmount}.`,
           data: po
         }
       }
@@ -499,7 +499,7 @@ export async function executeErpTool(
         return {
           success: true,
           action: 'Employee Added',
-          details: `Added ${employee.first_name} ${employee.last_name} (${employee.role}) with base salary $${employee.base_salary}/month.`,
+          details: `Added ${employee.first_name} ${employee.last_name} (${employee.role}) with base salary Rs ${employee.base_salary}/month.`,
           data: employee
         }
       }
@@ -812,7 +812,7 @@ export async function executeErpTool(
         return {
           success: true,
           action: 'Expense Logged',
-          details: `Recorded expense of $${exp.amount} under "${category_name}" on ${dateStr}. Ref: ${exp.reference_number}.`,
+          details: `Recorded expense of Rs ${exp.amount} under "${category_name}" on ${dateStr}. Ref: ${exp.reference_number}.`,
           data: exp
         }
       }
@@ -840,7 +840,7 @@ export async function executeErpTool(
         return {
           success: true,
           action: 'Financial Summary',
-          details: `Financials (${period}): Total Revenue: $${totalRevenue.toFixed(2)}, Operational Expenses: $${totalExpenses.toFixed(2)}, Net Profit: $${netMargin.toFixed(2)}.`,
+          details: `Financials (${period}): Total Revenue: Rs ${totalRevenue.toFixed(2)}, Operational Expenses: Rs ${totalExpenses.toFixed(2)}, Net Profit: Rs ${netMargin.toFixed(2)}.`,
           data: { totalRevenue, totalExpenses, netMargin, salesCount: sales?.length || 0 }
         }
       }
@@ -1230,12 +1230,12 @@ export async function executeErpTool(
         revalidatePath('/inventory/movements')
         revalidatePath('/dashboard')
 
-        const itemSummary = resolvedItems.map(i => `${i.quantity}x ${i.product_name} ($${i.subtotal})`).join(', ')
+        const itemSummary = resolvedItems.map(i => `${i.quantity}x ${i.product_name} (Rs ${i.subtotal})`).join(', ')
 
         return {
           success: true,
           action: 'Sale Checkout Completed',
-          details: `Invoice ${invoice_number}: Sold ${itemSummary} for a total of $${totalAmount} via ${normalizedPayment}.${customerDisplayName ? ` Customer: ${customerDisplayName}.` : ''} Inventory stock was automatically reduced.`,
+          details: `Invoice ${invoice_number}: Sold ${itemSummary} for a total of Rs ${totalAmount} via ${normalizedPayment}.${customerDisplayName ? ` Customer: ${customerDisplayName}.` : ''} Inventory stock was automatically reduced.`,
           data: {
             invoice_number,
             total_amount: totalAmount,
@@ -1300,7 +1300,7 @@ export async function executeErpTool(
         return {
           success: true,
           action: 'Sales History Query',
-          details: `Retrieved ${totalTransactions} sale(s) totaling $${totalRevenue.toFixed(2)} for ${periodLabel}.`,
+          details: `Retrieved ${totalTransactions} sale(s) totaling Rs ${totalRevenue.toFixed(2)} for ${periodLabel}.`,
           data: {
             period: periodLabel,
             totalRevenue,

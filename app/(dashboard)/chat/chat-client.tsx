@@ -482,7 +482,7 @@ export function ChatClient({ profile }: { profile: any }) {
                   {showAttachMenu && (
                     <div className="absolute top-full left-0 mt-2 w-64 rounded-2xl bg-popover text-popover-foreground border border-border shadow-xl p-1.5 z-30 space-y-1 animate-in fade-in zoom-in-95 duration-150">
                       <button
-                        onClick={() => handleSend('Add a new product: Smoked Cheddar Cheese, SKU CHD-02, cost $9, price $18, category Dairy, stock 30')}
+                        onClick={() => handleSend('Add a new product: Smoked Cheddar Cheese, SKU CHD-02, cost Rs 900, price Rs 1,800, category Dairy, stock 30')}
                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-muted text-xs text-left text-foreground transition-colors"
                       >
                         <Package className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -502,7 +502,7 @@ export function ChatClient({ profile }: { profile: any }) {
                         </div>
                       </button>
                       <button
-                        onClick={() => handleSend('Log an expense of $150 for Kitchen Supplies under Maintenance')}
+                        onClick={() => handleSend('Log an expense of Rs 15,000 for Kitchen Supplies under Maintenance')}
                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-muted text-xs text-left text-foreground transition-colors"
                       >
                         <DollarSign className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -726,7 +726,7 @@ export function ChatClient({ profile }: { profile: any }) {
               {showAttachMenu && (
                 <div className="absolute bottom-full left-0 mb-2 w-64 rounded-2xl bg-popover text-popover-foreground border border-border shadow-xl p-1.5 z-30 space-y-1 animate-in fade-in zoom-in-95 duration-150">
                   <button
-                    onClick={() => handleSend('Add a new product: Smoked Cheddar Cheese, SKU CHD-02, cost $9, price $18, category Dairy, stock 30')}
+                    onClick={() => handleSend('Add a new product: Smoked Cheddar Cheese, SKU CHD-02, cost Rs 900, price Rs 1,800, category Dairy, stock 30')}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-muted text-xs text-left text-foreground transition-colors"
                   >
                     <Package className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -746,7 +746,7 @@ export function ChatClient({ profile }: { profile: any }) {
                     </div>
                   </button>
                   <button
-                    onClick={() => handleSend('Log an expense of $150 for Kitchen Supplies under Maintenance')}
+                    onClick={() => handleSend('Log an expense of Rs 15,000 for Kitchen Supplies under Maintenance')}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-muted text-xs text-left text-foreground transition-colors"
                   >
                     <DollarSign className="h-4 w-4 text-amber-600 dark:text-amber-400" />

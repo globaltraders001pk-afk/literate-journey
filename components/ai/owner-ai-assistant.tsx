@@ -99,7 +99,7 @@ const DEFAULT_PROMPTS = [
   {
     icon: DollarSign,
     label: 'Log Expense',
-    prompt: 'Log an expense of $120 for Kitchen Utensils under Maintenance category'
+    prompt: 'Log an expense of Rs 12,000 for Kitchen Utensils under Maintenance category'
   },
   {
     icon: ClipboardList,

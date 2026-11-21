@@ -80,7 +80,7 @@ export function VendorForm({ initialData }: { initialData?: any }) {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="rates">Agreed Rates / Terms</Label>
-              <Input id="rates" name="rates" placeholder="e.g. $1.15/L Milk, Net 30" defaultValue={initialData?.rates} />
+              <Input id="rates" name="rates" placeholder="e.g. Rs 280/L Milk, Net 30" defaultValue={initialData?.rates} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="address">Address / Facility</Label>

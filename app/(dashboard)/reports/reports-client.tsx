@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { formatPKR } from '@/lib/format-currency'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -117,7 +118,7 @@ export function ReportsClient({ data }: { data: any }) {
                 <DollarSign className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-semibold text-foreground">${currentSales.total.toFixed(2)}</div>
+                <div className="text-2xl font-semibold text-foreground">{formatPKR(currentSales.total)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Revenue for selected period</p>
               </CardContent>
             </Card>
@@ -139,7 +140,7 @@ export function ReportsClient({ data }: { data: any }) {
                 <TrendingUp className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-semibold text-foreground">${avgTicket.toFixed(2)}</div>
+                <div className="text-2xl font-semibold text-foreground">{formatPKR(avgTicket)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Spend per customer order</p>
               </CardContent>
             </Card>
@@ -165,7 +166,7 @@ export function ReportsClient({ data }: { data: any }) {
                       <TableRow key={d.date}>
                         <TableCell className="font-medium">{d.date}</TableCell>
                         <TableCell className="text-center">{d.count}</TableCell>
-                        <TableCell className="text-right font-medium text-foreground">${d.amount.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-medium text-foreground">{formatPKR(d.amount)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -199,7 +200,7 @@ export function ReportsClient({ data }: { data: any }) {
                       <TableRow key={idx}>
                         <TableCell className="font-medium">{p.name}</TableCell>
                         <TableCell className="text-center">{p.quantity}</TableCell>
-                        <TableCell className="text-right font-medium text-foreground">${p.revenue.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-medium text-foreground">{formatPKR(p.revenue)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -307,7 +308,7 @@ export function ReportsClient({ data }: { data: any }) {
                 <Building2 className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-semibold text-foreground">${vendorMetrics.totalVendorSpend.toFixed(2)}</div>
+                <div className="text-2xl font-semibold text-foreground">{formatPKR(vendorMetrics.totalVendorSpend)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Across all vendor purchase orders</p>
               </CardContent>
             </Card>
@@ -351,7 +352,7 @@ export function ReportsClient({ data }: { data: any }) {
                     <TableRow key={i}>
                       <TableCell className="font-medium text-foreground">{v.vendorName}</TableCell>
                       <TableCell className="text-center">{v.orderCount}</TableCell>
-                      <TableCell className="text-right font-medium text-foreground">${v.totalSpent.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-medium text-foreground">{formatPKR(v.totalSpent)}</TableCell>
                       <TableCell className="text-right text-xs text-muted-foreground">{v.lastOrder}</TableCell>
                     </TableRow>
                   ))}
@@ -372,7 +373,7 @@ export function ReportsClient({ data }: { data: any }) {
                 <DollarSign className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-semibold text-foreground">${pnlSummary.totalRevenue.toFixed(2)}</div>
+                <div className="text-2xl font-semibold text-foreground">{formatPKR(pnlSummary.totalRevenue)}</div>
                 <p className="text-xs text-muted-foreground mt-1">From all customer sales</p>
               </CardContent>
             </Card>
@@ -383,7 +384,7 @@ export function ReportsClient({ data }: { data: any }) {
                 <Layers className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-semibold text-foreground">${pnlSummary.cogs.toFixed(2)}</div>
+                <div className="text-2xl font-semibold text-foreground">{formatPKR(pnlSummary.cogs)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Direct product costs</p>
               </CardContent>
             </Card>
@@ -394,7 +395,7 @@ export function ReportsClient({ data }: { data: any }) {
                 <TrendingUp className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-semibold text-primary">${pnlSummary.grossProfit.toFixed(2)}</div>
+                <div className="text-2xl font-semibold text-primary">{formatPKR(pnlSummary.grossProfit)}</div>
                 <p className="text-xs font-medium text-primary mt-1">{pnlSummary.grossMarginPct.toFixed(1)}% Gross Margin</p>
               </CardContent>
             </Card>
@@ -406,7 +407,7 @@ export function ReportsClient({ data }: { data: any }) {
               </CardHeader>
               <CardContent>
                 <div className={`text-2xl font-semibold ${pnlSummary.netProfit >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                  ${pnlSummary.netProfit.toFixed(2)}
+                  {formatPKR(pnlSummary.netProfit)}
                 </div>
                 <p className={`text-xs font-medium mt-1 ${pnlSummary.netProfit >= 0 ? 'text-primary' : 'text-destructive'}`}>
                   {pnlSummary.netMarginPct.toFixed(1)}% Net Margin
@@ -424,33 +425,33 @@ export function ReportsClient({ data }: { data: any }) {
               <div className="space-y-4 max-w-xl text-sm">
                 <div className="flex justify-between py-2 border-b">
                   <span className="font-medium">Total Sales Revenue</span>
-                  <span className="font-semibold text-foreground">${pnlSummary.totalRevenue.toFixed(2)}</span>
+                  <span className="font-semibold text-foreground">{formatPKR(pnlSummary.totalRevenue)}</span>
                 </div>
 
                 <div className="flex justify-between py-2 border-b text-muted-foreground">
                   <span className="pl-4">Less: Cost of Goods Sold (COGS)</span>
-                  <span className="text-destructive font-mono">-${pnlSummary.cogs.toFixed(2)}</span>
+                  <span className="text-destructive font-mono">-{formatPKR(pnlSummary.cogs)}</span>
                 </div>
 
                 <div className="flex justify-between py-2 border-b font-semibold bg-muted/20 px-2 rounded">
                   <span>Gross Profit</span>
-                  <span className="text-primary font-mono">${pnlSummary.grossProfit.toFixed(2)}</span>
+                  <span className="text-primary font-mono">{formatPKR(pnlSummary.grossProfit)}</span>
                 </div>
 
                 <div className="flex justify-between py-2 border-b text-muted-foreground">
                   <span className="pl-4">Less: General & Administrative Expenses</span>
-                  <span className="text-destructive font-mono">-${pnlSummary.operatingExpenses.toFixed(2)}</span>
+                  <span className="text-destructive font-mono">-{formatPKR(pnlSummary.operatingExpenses)}</span>
                 </div>
 
                 <div className="flex justify-between py-2 border-b text-muted-foreground">
                   <span className="pl-4">Less: Disbursed Staff Payroll</span>
-                  <span className="text-destructive font-mono">-${pnlSummary.paidPayroll.toFixed(2)}</span>
+                  <span className="text-destructive font-mono">-{formatPKR(pnlSummary.paidPayroll)}</span>
                 </div>
 
                 <div className="flex justify-between py-3 border-t-2 border-primary/40 text-base font-bold bg-primary/10 px-3 rounded-lg text-foreground">
                   <span>Net Bottom-Line Profit / (Loss)</span>
                   <span className={pnlSummary.netProfit >= 0 ? 'text-primary font-mono' : 'text-destructive font-mono'}>
-                    ${pnlSummary.netProfit.toFixed(2)}
+                    {formatPKR(pnlSummary.netProfit)}
                   </span>
                 </div>
               </div>

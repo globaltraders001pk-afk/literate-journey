@@ -80,12 +80,12 @@ export function ProductForm({
             </div>
             <div className={canViewCost ? "grid grid-cols-2 gap-4" : "grid grid-cols-1 gap-4"}>
               <div className="grid gap-2">
-                <Label htmlFor="selling_price">Selling Price ($)</Label>
+                <Label htmlFor="selling_price">Selling Price (Rs)</Label>
                 <Input id="selling_price" name="selling_price" type="number" step="0.01" required placeholder="10.00" defaultValue={initialData?.selling_price} />
               </div>
               {canViewCost ? (
                 <div className="grid gap-2">
-                  <Label htmlFor="cost_price">Cost Price ($)</Label>
+                  <Label htmlFor="cost_price">Cost Price (Rs)</Label>
                   <Input id="cost_price" name="cost_price" type="number" step="0.01" required placeholder="5.00" defaultValue={initialData?.cost_price} />
                 </div>
               ) : (

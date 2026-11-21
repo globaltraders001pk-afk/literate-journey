@@ -52,7 +52,7 @@ export function ExpenseForm({ categories }: { categories: any[] }) {
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="amount">Amount ($)</Label>
+                <Label htmlFor="amount">Amount (Rs)</Label>
                 <Input id="amount" name="amount" type="number" step="0.01" required />
               </div>
             </div>
