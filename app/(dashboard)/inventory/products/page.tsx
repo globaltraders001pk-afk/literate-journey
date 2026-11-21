@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ProductForm } from './product-form'
 import { DeleteProductButton } from './delete-product-button'
+import { ExportProductsButton } from './export-products-button'
 import { Badge } from '@/components/ui/badge'
 import ProductsLoading from './loading'
 import { formatPKR } from '@/lib/format-currency'
@@ -33,7 +34,10 @@ async function ProductsDataLoader() {
           <h1 className="text-2xl font-semibold tracking-normal">Products</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage your product catalog, weights, and pricing.</p>
         </div>
-        <ProductForm categories={categories || []} canViewCost={canViewCost} />
+        <div className="flex items-center gap-2">
+          <ExportProductsButton products={products || []} canViewCost={canViewCost} />
+          <ProductForm categories={categories || []} canViewCost={canViewCost} />
+        </div>
       </div>
 
       <Card>
