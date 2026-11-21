@@ -5,30 +5,44 @@ import { checkAccess, getUserProfile } from '@/lib/auth-utils'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { revalidatePath } from 'next/cache'
 import { INVOICE_SCHEMA_MISSING } from '@/lib/invoice-schema'
+import {
+  checkoutSchema,
+  customerSchema,
+  emptyToUndefined,
+  firstZodError,
+} from '@/lib/validation'
+import {
+  normalizePageOptions,
+  type PageOptions,
+} from '@/lib/pagination'
 
-export async function getCustomers() {
+export async function getCustomers(options?: PageOptions) {
   const profile = await getUserProfile()
-  if (!profile) return []
+  if (!profile) return { rows: [], total: 0, limit: 0, offset: 0 }
+  const { limit, offset } = normalizePageOptions(options)
   const supabase = await createClient()
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from('customers')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('organization_id', profile.organization_id)
     .order('name', { ascending: true })
-  
+    .range(offset, offset + limit - 1)
+
   if (error) throw new Error(error.message)
-  return data
+  return { rows: data ?? [], total: count ?? 0, limit, offset }
 }
 
 export async function createCustomer(formData: FormData) {
-  const name = formData.get('name') as string
-  const phone = formData.get('phone') as string
-  const email = formData.get('email') as string
-  const address = formData.get('address') as string
-  const ntn = (formData.get('ntn') as string)?.trim()
-  const buyer_type = (formData.get('buyer_type') as string)?.trim()
-
-  if (!name) return { error: 'Name is required' }
+  const parsed = customerSchema.safeParse({
+    name: formData.get('name'),
+    phone: emptyToUndefined(formData.get('phone')),
+    email: emptyToUndefined(formData.get('email')),
+    address: emptyToUndefined(formData.get('address')),
+    ntn: emptyToUndefined(formData.get('ntn')),
+    buyer_type: emptyToUndefined(formData.get('buyer_type')),
+  })
+  if (!parsed.success) return { error: firstZodError(parsed) }
+  const { name, phone, email, address, ntn, buyer_type } = parsed.data
 
   const supabase = await createClient()
   const { data: userData } = await supabase.auth.getUser()
@@ -47,200 +61,100 @@ export async function createCustomer(formData: FormData) {
     .insert({
       organization_id: profile.organization_id,
       name,
-      phone,
-      email,
-      address,
+      phone: phone || null,
+      email: email || null,
+      address: address || null,
       ntn: ntn || null,
       buyer_type: buyer_type || null
     })
 
   if (error) return { error: error.message }
-  
+
   revalidatePath('/sales/customers')
   return { success: true }
 }
 
-/**
- * Next sequential invoice number for this org: <PREFIX>/<NNNN>.
- * The prefix comes from the org's FBR settings (invoice_prefix, default "GT-226").
- * Format matches the client's sample invoice (e.g. GT-226/0008): the
- * sequence NEVER restarts — it counts all of this org's `${prefix}/%`
- * rows and takes max suffix + 1. Old INV-YYYY-NNNN and INV-xxxxxx rows
- * are untouched and still look up fine via getInvoiceByNumber (exact
- * invoice_number match, no format assumption).
- * NOTE: two checkouts in the same instant could read the same max; there is
- * no DB sequence / unique constraint in this repo to guard that (see report).
- */
-async function generateSequentialInvoiceNumber(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  organizationId: string
-): Promise<string> {
-  let prefix = 'GT-226'
-  try {
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('invoice_prefix')
-      .eq('id', organizationId)
-      .maybeSingle()
-    const stored = (org as { invoice_prefix?: string | null } | null)?.invoice_prefix
-    if (stored && stored.trim()) prefix = stored.trim().toUpperCase()
-  } catch {
-    // FBR columns not added to the live DB yet — fall back to the default prefix.
-  }
-
-  let next = 1
-  const { data: existing, error } = await supabase
-    .from('sales')
-    .select('invoice_number')
-    .eq('organization_id', organizationId)
-    .like('invoice_number', `${prefix}/%`)
-
-  if (!error && existing) {
-    for (const row of existing as { invoice_number: string }[]) {
-      // Digits after the LAST "/" — e.g. "GT-226/0008" -> 8. Old
-      // "INV-2026-0001" rows never match the like() above, so they
-      // cannot collide with or inflate this sequence.
-      const match = /\/(\d+)$/.exec(row.invoice_number || '')
-      if (match) next = Math.max(next, parseInt(match[1], 10) + 1)
-    }
-  }
-
-  return `${prefix}/${String(next).padStart(4, '0')}`
-}
-
+// ---------------------------------------------------------------------------
+// processCheckout — one atomic Postgres transaction (QA audit C3).
+//
+// The old code trusted the POS cart's unit_price / subtotal /
+// totalAmount, inserted the sale header first, then only
+// console.error'd failures of the items / movements /
+// customer-total legs while still returning success. Now the
+// whole sale runs inside public.process_checkout() (see
+// supabase/migrations/20261122_money_transactions.sql), which:
+//   * re-prices every line from products.selling_price — the
+//     client-supplied prices are validated for shape only and
+//     never used as money;
+//   * verifies every product and the customer belong to the
+//     caller's org, and that stock is sufficient;
+//   * inserts the sale header + sale_items + inventory_movements
+//     and bumps customers.total_spent atomically;
+//   * mints the sequential invoice number under an org-row lock.
+// Any leg failing raises, the transaction rolls back, and this
+// action returns { error } — the POS shows the error instead of
+// "Sale completed". There is no partial-success path.
+// ---------------------------------------------------------------------------
 export async function processCheckout(
   cart: { product_id: string, quantity: number, unit_price: number, subtotal: number }[],
   customerId: string | null,
   paymentMethod: string,
   totalAmount: number
 ) {
-  if (!cart.length) return { error: 'Cart is empty' }
+  // Shape only: negative / NaN quantities and totals are refused
+  // before any DB call. Money itself is re-derived server-side.
+  const parsed = checkoutSchema.safeParse({
+    cart: (cart || []).map((item) => ({
+      product_id: item.product_id,
+      quantity: item.quantity,
+    })),
+    customerId,
+    paymentMethod,
+    totalAmount,
+  })
+  if (!parsed.success) return { error: firstZodError(parsed) }
+
+  // Auth gate (QA audit C3: sales.ts had zero checkAccess calls).
+  // Every signed-in role may sell at the POS — this is the
+  // signed-out redirect, not a role restriction.
+  let profile: { id: string; organization_id: string }
+  try {
+    profile = await checkAccess(['owner', 'admin', 'manager', 'employee'])
+  } catch (err) {
+    if (isRedirectError(err)) throw err
+    return { error: 'Unauthorized' }
+  }
 
   const supabase = await createClient()
-  const { data: userData } = await supabase.auth.getUser()
-  if (!userData.user) return { error: 'Unauthorized' }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, organization_id')
-    .eq('id', userData.user.id)
-    .single()
+  const { data, error } = await supabase.rpc('process_checkout', {
+    p_customer_id: parsed.data.customerId,
+    p_payment_method: parsed.data.paymentMethod,
+    p_items: parsed.data.cart.map((item) => ({
+      product_id: item.product_id,
+      quantity: item.quantity,
+    })),
+  })
 
-  if (!profile) return { error: 'Profile not found' }
-  
-  let { data: branch } = await supabase
-    .from('branches')
-    .select('id')
-    .eq('organization_id', profile.organization_id)
-    .limit(1)
-    .single()
+  if (error) return { error: error.message }
 
-  if (!branch) {
-    const { data: newBranch, error: branchError } = await supabase
-      .from('branches')
-      .insert({ organization_id: profile.organization_id, name: 'Main Branch' })
-      .select('id')
-      .single()
-      
-    if (branchError) return { error: 'Failed to create default branch.' }
-    branch = newBranch
+  const result = data as { invoice_number?: string; total_amount?: number } | null
+  if (!result?.invoice_number) {
+    return { error: 'Checkout failed: no invoice was created.' }
   }
 
-  const invoice_number = await generateSequentialInvoiceNumber(supabase, profile.organization_id)
-
-  // Normalize payment method to match Postgres enum payment_method: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'ONLINE' | 'CREDIT'
-  let normalizedPayment: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'ONLINE' | 'CREDIT' = 'CASH'
-  const upperPayment = (paymentMethod || 'CASH').toUpperCase()
-  if (upperPayment === 'UPI' || upperPayment === 'ONLINE') {
-    normalizedPayment = 'ONLINE'
-  } else if (upperPayment === 'CARD') {
-    normalizedPayment = 'CARD'
-  } else if (upperPayment === 'BANK_TRANSFER') {
-    normalizedPayment = 'BANK_TRANSFER'
-  } else if (upperPayment === 'CREDIT') {
-    normalizedPayment = 'CREDIT'
-  } else {
-    normalizedPayment = 'CASH'
-  }
-
-  // 1. Create Sale Header
-  const { data: sale, error: saleError } = await supabase
-    .from('sales')
-    .insert({
-      organization_id: profile.organization_id,
-      branch_id: branch.id,
-      customer_id: customerId || null,
-      invoice_number,
-      subtotal: totalAmount,
-      total_amount: totalAmount,
-      payment_method: normalizedPayment,
-      created_by: profile.id
-    })
-    .select('id')
-    .single()
-
-  if (saleError) return { error: saleError.message }
-
-  // 2. Prepare Batched Sale Items & Inventory Movements (Batch Insert in 1 roundtrip)
-  const saleItemsPayload = cart.map(item => ({
-    sale_id: sale.id,
-    product_id: item.product_id,
-    quantity: item.quantity,
-    unit_price: item.unit_price,
-    subtotal: item.subtotal
-  }))
-
-  const inventoryMovementsPayload = cart.map(item => ({
-    organization_id: profile.organization_id,
-    branch_id: branch.id,
-    product_id: item.product_id,
-    movement_type: 'STOCK_OUT',
-    quantity: -item.quantity, // Negative for sale deduction
-    reference_type: 'sale',
-    reference_id: sale.id,
-    notes: `Sale ${invoice_number}`,
-    created_by: profile.id
-  }))
-
-  // 3. Execute batched writes in parallel for lightning-fast invoice generation
-  const tasks: PromiseLike<any>[] = [
-    supabase.from('sale_items').insert(saleItemsPayload),
-    supabase.from('inventory_movements').insert(inventoryMovementsPayload)
-  ]
-
-  // If customer is selected, update customer total_spent in parallel
-  if (customerId) {
-    tasks.push(
-      (async () => {
-        const { data: customerData } = await supabase
-          .from('customers')
-          .select('total_spent')
-          .eq('id', customerId)
-          .single()
-        const currentTotal = customerData?.total_spent || 0
-        await supabase
-          .from('customers')
-          .update({ total_spent: Number(currentTotal) + totalAmount })
-          .eq('id', customerId)
-      })()
-    )
-  }
-
-  const [itemsRes, movementsRes] = await Promise.all(tasks)
-
-  if (itemsRes?.error) {
-    console.error('Error batch inserting sale items:', itemsRes.error)
-  }
-  if (movementsRes?.error) {
-    console.error('Error batch inserting inventory movements:', movementsRes.error)
-  }
-
+  revalidatePath('/sales/pos')
   revalidatePath('/inventory/stock')
   revalidatePath('/inventory/movements')
-  revalidatePath('/sales/history')
   revalidatePath('/dashboard')
 
-  return { success: true, invoice_number }
+  // total_amount is the server-computed total (catalog prices),
+  // which the POS receipt must show — never the cart's total.
+  return {
+    success: true,
+    invoice_number: result.invoice_number,
+    total_amount: Number(result.total_amount) || 0,
+  }
 }
 
 /**
@@ -360,4 +274,3 @@ export async function updateProcurementRef(invoiceNumber: string, value: string)
     return { error: 'Failed to update procurement reference' }
   }
 }
-
