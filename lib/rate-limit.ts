@@ -34,6 +34,22 @@ export function checkRateLimit(
   }
 }
 
+/** Peek without counting: is this key already over its limit? */
+export function isRateLimited(
+  key: string,
+  limit: number,
+  windowMs: number,
+  now: number = Date.now()
+): { limited: boolean; retryAfterSeconds: number } {
+  const entry = windows.get(key)
+  if (!entry || now >= entry.resetAt) return { limited: false, retryAfterSeconds: 0 }
+  if (entry.count < limit) return { limited: false, retryAfterSeconds: 0 }
+  return {
+    limited: true,
+    retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)),
+  }
+}
+
 /** Test/support hook: drop one key's counter (e.g. after a successful login). */
 export function resetRateLimit(key: string): void {
   windows.delete(key)
