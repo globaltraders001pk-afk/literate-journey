@@ -264,7 +264,7 @@ export async function getComprehensiveReports() {
     vendorMetrics: {
       vendorSummary,
       totalVendorOrders: purchaseOrders?.length || 0,
-      totalVendorSpend: purchaseOrders?.reduce((sum, po) => sum + (parseFloat(po.total_amount) || 0), 0) || 0
+      totalVendorSpend: purchaseOrders?.reduce((sum, po) => sum + (Number(po.total_amount) || 0), 0) || 0
     },
     pnlSummary,
     userRole: profile.role
