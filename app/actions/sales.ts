@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { INVOICE_SCHEMA_MISSING } from '@/lib/invoice-schema'
 
 export async function getCustomers() {
   const supabase = await createClient()
@@ -238,14 +239,15 @@ export async function processCheckout(
 }
 
 /**
- * Returned by getInvoiceByNumber when the query fails because the FBR
- * v2 columns (procurement_ref, fbr_status, ...) do not exist in the
- * database yet — i.e. the v2 delta SQL has not been run on the live DB.
- * The invoice page shows a plain "schema update needed" message for
- * this instead of a 404, so old pre-v2 invoices stay readable in
- * spirit (and new ones fail loudly, not silently).
+ * Marker returned by getInvoiceByNumber when the query fails because
+ * the FBR v2 columns (procurement_ref, fbr_status, ...) do not exist
+ * in the database yet — i.e. the v2 delta SQL has not been run on the
+ * live DB. The invoice page shows a plain "schema update needed"
+ * message for this instead of a 404, so old pre-v2 invoices stay
+ * readable in spirit (and new ones fail loudly, not silently).
+ * (The marker itself lives in lib/invoice-schema.ts — a 'use server'
+ * file may only export async functions.)
  */
-export const INVOICE_SCHEMA_MISSING = 'schema-missing' as const
 
 // PostgREST reports a missing column as PGRST204 ("could not find the
 // column ... in the schema cache"); Postgres itself reports it as

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
-import { getInvoiceByNumber, INVOICE_SCHEMA_MISSING } from '@/app/actions/sales'
+import { getInvoiceByNumber } from '@/app/actions/sales'
+import { INVOICE_SCHEMA_MISSING } from '@/lib/invoice-schema'
 import { getOrganization } from '@/app/actions/organization'
 import { FbrInvoiceClient } from './fbr-invoice-client'
 
