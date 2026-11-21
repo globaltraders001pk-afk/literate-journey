@@ -4,6 +4,15 @@ import { redirect } from 'next/navigation'
 
 export type UserRole = 'owner' | 'admin' | 'manager' | 'employee'
 
+// Columns of `organizations` that are safe to send to the browser.
+// fbr_token is deliberately NOT in this list: it is a backend-only
+// credential, stored in the DB and never rendered or printed anywhere.
+// barcode_value is dead (the client sample forbids it on the invoice).
+// Every organizations read that reaches a client component must use
+// this list instead of select('*') — see QA audit H1 (2026-11-20).
+export const ORGANIZATION_PUBLIC_COLUMNS =
+  'id, name, phone, email, address, logo_url, ntn, invoice_prefix, bank_name, bank_iban, dispatch_text, payment_terms_days, gst_rate, created_at'
+
 export const getUserProfile = cache(async () => {
   const supabase = await createClient()
   const { data: userData } = await supabase.auth.getUser()
@@ -24,7 +33,7 @@ export const getOrganization = cache(async (organizationId: string) => {
   const supabase = await createClient()
   const { data } = await supabase
     .from('organizations')
-    .select('*')
+    .select(ORGANIZATION_PUBLIC_COLUMNS)
     .eq('id', organizationId)
     .single()
   return data

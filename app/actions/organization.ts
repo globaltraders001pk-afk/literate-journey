@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getUserProfile } from '@/lib/auth-utils'
+import { getUserProfile, ORGANIZATION_PUBLIC_COLUMNS } from '@/lib/auth-utils'
 import { revalidatePath } from 'next/cache'
 
 export async function getPublicBrand() {
@@ -28,7 +28,7 @@ export async function getOrganization() {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('organizations')
-    .select('*')
+    .select(ORGANIZATION_PUBLIC_COLUMNS)
     .eq('id', profile.organization_id)
     .single()
 
@@ -74,7 +74,7 @@ export async function updateOrganization(formData: FormData) {
       address: address || null,
     })
     .eq('id', profile.organization_id)
-    .select()
+    .select(ORGANIZATION_PUBLIC_COLUMNS)
     .single()
 
   if (error) {
@@ -128,21 +128,36 @@ export async function updateFbrSettings(formData: FormData) {
   // forbids both the barcode and the FBR token on the printed invoice,
   // so the field is dead and was removed (v2 delta, Nov 2026).
   // fbr_token stays backend-only: it is stored here, never rendered
-  // on any invoice.
+  // on any invoice — and never sent back to the browser either (the
+  // settings form never receives the stored token, so an empty token
+  // field means "keep what is stored", NOT "clear it").
+  const updates: {
+    ntn: string | null
+    invoice_prefix: string
+    bank_name: string | null
+    bank_iban: string | null
+    dispatch_text: string | null
+    payment_terms_days: number
+    gst_rate: number
+    fbr_token?: string
+  } = {
+    ntn: ntn || null,
+    invoice_prefix,
+    bank_name: bank_name || null,
+    bank_iban: bank_iban || null,
+    dispatch_text: dispatch_text || null,
+    payment_terms_days,
+    gst_rate,
+  }
+  if (fbr_token) {
+    updates.fbr_token = fbr_token
+  }
+
   const { data, error } = await supabase
     .from('organizations')
-    .update({
-      ntn: ntn || null,
-      fbr_token: fbr_token || null,
-      invoice_prefix,
-      bank_name: bank_name || null,
-      bank_iban: bank_iban || null,
-      dispatch_text: dispatch_text || null,
-      payment_terms_days,
-      gst_rate,
-    })
+    .update(updates)
     .eq('id', profile.organization_id)
-    .select()
+    .select(ORGANIZATION_PUBLIC_COLUMNS)
     .single()
 
   if (error) {
@@ -221,7 +236,7 @@ export async function uploadOrganizationLogo(formData: FormData) {
       .from('organizations')
       .update({ logo_url: logoUrl })
       .eq('id', profile.organization_id)
-      .select()
+      .select(ORGANIZATION_PUBLIC_COLUMNS)
       .single()
 
     if (dbError) {
@@ -262,7 +277,7 @@ export async function updateOrganizationLogoUrl(logoUrl: string) {
     .from('organizations')
     .update({ logo_url: trimmedUrl })
     .eq('id', profile.organization_id)
-    .select()
+    .select(ORGANIZATION_PUBLIC_COLUMNS)
     .single()
 
   if (error) {
@@ -294,7 +309,7 @@ export async function removeOrganizationLogo() {
     .from('organizations')
     .update({ logo_url: null })
     .eq('id', profile.organization_id)
-    .select()
+    .select(ORGANIZATION_PUBLIC_COLUMNS)
     .single()
 
   if (error) {
