@@ -211,7 +211,18 @@ const employeeBaseSchema = z.object({
 
 export const employeeCreateSchema = employeeBaseSchema.extend({
   create_login: z.boolean(),
-  password: z.string().max(200).optional(),
+  // Password strength (QA audit L3): at least 8 characters, with at
+  // least one letter and one digit. Checked whenever a password is
+  // supplied — createEmployee still only *requires* one when
+  // create_login is on.
+  password: z
+    .string()
+    .max(200)
+    .optional()
+    .refine((v) => v === undefined || isStrongPassword(v), {
+      message:
+        'Password must be at least 8 characters long and include at least one letter and one digit',
+    }),
 })
 
 export const employeeUpdateSchema = employeeBaseSchema.extend({
@@ -230,6 +241,11 @@ export const payrollGenerateSchema = z.object({
 export const payrollPaySchema = z.object({
   payrollId: uuidSchema,
 })
+
+/** Password strength (QA audit L3): min 8 chars, at least one letter and one digit. */
+export function isStrongPassword(value: string): boolean {
+  return value.length >= 8 && /[A-Za-z]/.test(value) && /\d/.test(value)
+}
 
 /** First human-readable message from a zod parse failure. */
 export function firstZodError(result: {
