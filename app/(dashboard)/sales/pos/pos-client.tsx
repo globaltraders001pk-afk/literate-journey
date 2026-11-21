@@ -14,11 +14,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { processCheckout } from '@/app/actions/sales'
 import { formatPKR } from '@/lib/format-currency'
 import { useOrganization } from '@/components/providers/organization-provider'
 import Link from 'next/link'
-import { Minus, Plus, ShoppingCart, Trash2, Printer, CheckCircle2, Store, Loader2, FileText } from 'lucide-react'
+import { Minus, Plus, ShoppingCart, Trash2, Printer, CheckCircle2, Store, Loader2, FileText, Search } from 'lucide-react'
 
 type CartItem = {
   product_id: string
@@ -45,9 +46,19 @@ export function POSClient({ products, customers }: { products: any[], customers:
   const [pending, setPending] = useState(false)
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null)
   const [invoiceOpen, setInvoiceOpen] = useState(false)
-  
+  const [searchQuery, setSearchQuery] = useState('')
+
   // Filter active products only
   const activeProducts = products.filter(p => p.is_active)
+
+  // Search by name or SKU, case-insensitive. There was no search input
+  // at all before — the whole catalog was rendered as one unfiltered grid.
+  const query = searchQuery.trim().toLowerCase()
+  const visibleProducts = activeProducts.filter(p =>
+    !query ||
+    p.name?.toLowerCase().includes(query) ||
+    p.sku?.toLowerCase().includes(query)
+  )
 
   const addToCart = (product: any) => {
     setCart(prev => {
@@ -234,8 +245,19 @@ export function POSClient({ products, customers }: { products: any[], customers:
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
         {/* Product Selection */}
         <div className="lg:col-span-2 space-y-4 h-full flex flex-col">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search products by name or SKU..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+              aria-label="Search products"
+            />
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 overflow-auto pb-4">
-            {activeProducts.map(product => (
+            {visibleProducts.map(product => (
               <Card key={product.id} className="cursor-pointer hover:border-primary transition-colors" onClick={() => addToCart(product)}>
                 <CardContent className="p-4 flex flex-col items-center text-center justify-center h-32">
                   <p className="font-semibold">{product.name}</p>
@@ -243,9 +265,11 @@ export function POSClient({ products, customers }: { products: any[], customers:
                 </CardContent>
               </Card>
             ))}
-            {activeProducts.length === 0 && (
+            {visibleProducts.length === 0 && (
               <div className="col-span-full text-center py-12 text-muted-foreground">
-                No active products available.
+                {query
+                  ? `No products match "${searchQuery.trim()}".`
+                  : 'No active products available.'}
               </div>
             )}
           </div>
