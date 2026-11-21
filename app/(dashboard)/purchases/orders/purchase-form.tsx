@@ -20,7 +20,9 @@ export function PurchaseForm({ vendors, products }: { vendors: any[], products: 
     setOpen(false)
   }
 
-  const generatedPoNumber = `PO-${Math.floor(1000 + Math.random() * 9000)}`
+  // Generated once per mount (react-hooks/purity): Math.random()
+  // during render gives a different number on every render.
+  const [generatedPoNumber] = useState(() => `PO-${Math.floor(1000 + Math.random() * 9000)}`)
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

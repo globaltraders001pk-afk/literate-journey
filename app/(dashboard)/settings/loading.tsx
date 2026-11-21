@@ -118,7 +118,7 @@ export default function SettingsLoading() {
                 <CardTitle>Business Branding & Dynamic Logo</CardTitle>
               </div>
               <CardDescription className="mt-1">
-                Upload your business's official logo. When changed, it updates across the entire system instantly—including the sidebar, POS receipts, and invoices.
+                Upload your business&apos;s official logo. When changed, it updates across the entire system instantly—including the sidebar, POS receipts, and invoices.
               </CardDescription>
             </div>
             <Badge variant="default" className="bg-emerald-600 text-[11px] py-1 shrink-0">

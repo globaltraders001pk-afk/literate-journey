@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import Image from 'next/image'
 import { Store } from 'lucide-react'
-import Link from 'next/link'
 
 export default function LoginPage() {
   const [state, action, pending] = useActionState(login, undefined)
@@ -28,9 +28,11 @@ export default function LoginPage() {
       <div className="flex flex-col items-center justify-center gap-2.5 text-center">
         {brand.logo_url ? (
           <div className="h-14 w-14 rounded-2xl overflow-hidden border border-border/80 bg-background shadow-sm flex items-center justify-center p-1">
-            <img
+            <Image
               src={brand.logo_url}
               alt={brand.name}
+              width={56}
+              height={56}
               className="h-full w-full object-contain"
             />
           </div>

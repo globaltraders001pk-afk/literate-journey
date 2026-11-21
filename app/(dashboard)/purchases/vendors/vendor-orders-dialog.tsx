@@ -14,7 +14,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { getVendorOrders } from '@/app/actions/vendors'
-import { History, Receipt, Package } from 'lucide-react'
+import { History, Receipt } from 'lucide-react'
 
 export function VendorOrdersDialog({ vendorId, vendorName }: { vendorId: string, vendorName: string }) {
   const [open, setOpen] = useState(false)

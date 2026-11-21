@@ -53,7 +53,7 @@ export default async function PayrollPage({
               {payrolls?.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No payroll data found for this month. Click "Generate Payroll" to begin.
+                    No payroll data found for this month. Click &quot;Generate Payroll&quot; to begin.
                   </TableCell>
                 </TableRow>
               )}

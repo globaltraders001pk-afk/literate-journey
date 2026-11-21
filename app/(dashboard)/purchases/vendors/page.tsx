@@ -44,7 +44,7 @@ export default async function VendorsPage() {
               {vendors?.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                    No vendors found. Click "Add Vendor" to register your first supplier.
+                    No vendors found. Click &quot;Add Vendor&quot; to register your first supplier.
                   </TableCell>
                 </TableRow>
               )}

@@ -51,7 +51,7 @@ export default async function AttendancePage({
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="border-border/70 shadow-xs">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase">Today's Status</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase">Today&apos;s Status</CardTitle>
               <UserCheck className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>

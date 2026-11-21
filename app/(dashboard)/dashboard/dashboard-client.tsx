@@ -14,12 +14,9 @@ import {
   DollarSign, 
   AlertTriangle, 
   Clock, 
-  Layers, 
   CheckCircle2, 
   Circle,
   ArrowUpRight, 
-  Store, 
-  ExternalLink,
   Calendar,
   ShieldAlert,
   Flame,
@@ -229,7 +226,7 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
           <Card className="border-border/70 shadow-xs">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Today's Transactions
+                Today&apos;s Transactions
               </CardTitle>
               <div className="p-2 rounded-lg bg-primary/10 text-primary">
                 <ShoppingCart className="h-4 w-4" />
@@ -664,7 +661,7 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-sm font-semibold">Today's Shift Tasks</CardTitle>
+                  <CardTitle className="text-sm font-semibold">Today&apos;s Shift Tasks</CardTitle>
                   <CardDescription className="text-xs">
                     {isEmployee ? 'Assigned tasks for your shift' : 'Team operations checklist'}
                   </CardDescription>

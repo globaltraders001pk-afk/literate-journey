@@ -1,4 +1,3 @@
-import { Skeleton } from '@/components/ui/skeleton'
 import { Plus, Sparkles, Mic, ArrowUp } from 'lucide-react'
 
 export default function ChatLoading() {

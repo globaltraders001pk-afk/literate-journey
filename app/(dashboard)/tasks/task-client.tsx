@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { updateTaskStatus, deleteTask } from '@/app/actions/tasks'
 import { TaskForm } from './task-form'
-import { CheckCircle2, Clock, Trash2, ListTodo, AlertCircle } from 'lucide-react'
+import { CheckCircle2, Clock, Trash2, ListTodo } from 'lucide-react'
 
 export function TasksClient({
   tasks,

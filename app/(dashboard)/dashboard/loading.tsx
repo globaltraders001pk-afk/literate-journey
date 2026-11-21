@@ -33,7 +33,7 @@ export default function DashboardLoading() {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Here is today's financial summary, inventory health, and store operations.
+            Here is today&apos;s financial summary, inventory health, and store operations.
           </p>
         </div>
 
@@ -316,7 +316,7 @@ export default function DashboardLoading() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-sm font-semibold">Today's Shift Tasks</CardTitle>
+                  <CardTitle className="text-sm font-semibold">Today&apos;s Shift Tasks</CardTitle>
                   <CardDescription className="text-xs">Quick action checklist</CardDescription>
                 </div>
                 <Skeleton className="h-4 w-12 rounded" />

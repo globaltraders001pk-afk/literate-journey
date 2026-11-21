@@ -102,7 +102,7 @@ export function EmployeeForm({ initialData }: { initialData?: any }) {
                 </div>
                 
                 <div className="text-xs text-muted-foreground">
-                  Creates an ERP login account using the Email provided above. Select the user's operational permission level:
+                  Creates an ERP login account using the Email provided above. Select the user&apos;s operational permission level:
                 </div>
 
                 <div className="grid gap-2">

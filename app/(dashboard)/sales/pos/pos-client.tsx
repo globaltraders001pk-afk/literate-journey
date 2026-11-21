@@ -19,6 +19,7 @@ import { processCheckout } from '@/app/actions/sales'
 import { formatPKR } from '@/lib/format-currency'
 import { DEFAULT_GST_RATE } from '@/lib/invoice-constants'
 import { useOrganization } from '@/components/providers/organization-provider'
+import Image from 'next/image'
 import Link from 'next/link'
 import { Minus, Plus, ShoppingCart, Trash2, Printer, CheckCircle2, Store, Loader2, FileText, Search } from 'lucide-react'
 
@@ -445,9 +446,11 @@ export function POSClient({ products, customers, stockByProduct }: { products: a
                   <div className="flex items-center justify-center gap-2 font-bold text-base text-primary">
                     {organization?.logo_url ? (
                       <div className="h-7 w-7 rounded overflow-hidden flex items-center justify-center shrink-0">
-                        <img
+                        <Image
                           src={organization.logo_url}
                           alt="Logo"
+                          width={28}
+                          height={28}
                           className="h-full w-full object-contain"
                         />
                       </div>

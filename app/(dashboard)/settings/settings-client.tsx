@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import NextImage from 'next/image'
 import { useTheme } from 'next-themes'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -41,7 +42,6 @@ import {
   AlertCircle, 
   CheckCircle2,
   Upload,
-  Image as ImageIcon,
   Trash2,
   Link2,
   Sparkles,
@@ -509,7 +509,7 @@ export function SettingsClient({
               <CardTitle>Business Branding & Dynamic Logo</CardTitle>
             </div>
             <CardDescription className="mt-1">
-              Upload your business's official logo. When changed, it updates across the entire system instantly—including the sidebar, POS receipts, and invoices.
+              Upload your business&apos;s official logo. When changed, it updates across the entire system instantly—including the sidebar, POS receipts, and invoices.
             </CardDescription>
           </div>
 
@@ -575,10 +575,12 @@ export function SettingsClient({
                 />
 
                 {activeLogo ? (
-                  <img
+                  <NextImage
                     src={activeLogo}
                     alt={organization?.name || 'Business Logo'}
-                    className="h-full w-full object-contain rounded-xl transition-transform group-hover:scale-105 duration-200"
+                    fill
+                    unoptimized
+                    className="object-contain rounded-xl transition-transform group-hover:scale-105 duration-200"
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-center p-4 space-y-2 text-muted-foreground">
@@ -909,9 +911,11 @@ export function SettingsClient({
               <div className="font-semibold text-base flex items-center gap-2.5">
                 {organization?.logo_url ? (
                   <div className="h-6 w-6 rounded-md overflow-hidden border bg-muted/20 flex items-center justify-center shrink-0">
-                    <img
+                    <NextImage
                       src={organization.logo_url}
                       alt="Logo"
+                      width={24}
+                      height={24}
                       className="h-full w-full object-contain"
                     />
                   </div>

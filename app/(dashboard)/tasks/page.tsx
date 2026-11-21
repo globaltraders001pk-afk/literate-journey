@@ -1,5 +1,5 @@
 import { getTasks, getAssignees } from '@/app/actions/tasks'
-import { getUserProfile, checkAccess } from '@/lib/auth-utils'
+import { checkAccess } from '@/lib/auth-utils'
 import { TasksClient } from './task-client'
 import { truncationNote } from '@/lib/pagination'
 

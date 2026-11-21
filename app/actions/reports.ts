@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { getUserProfile, checkAccess } from '@/lib/auth-utils'
+import { getUserProfile } from '@/lib/auth-utils'
 import { addDaysPKT, todayPKT, toPKTDateString } from '@/lib/dates'
 
 export async function getComprehensiveReports() {

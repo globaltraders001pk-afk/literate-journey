@@ -17,7 +17,6 @@ import {
   Layers,
   ArrowUpRight,
   ArrowDownRight,
-  ShieldCheck,
   Building2,
   PieChart
 } from 'lucide-react'

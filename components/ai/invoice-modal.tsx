@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import {
   Dialog,
   DialogContent,
@@ -14,7 +15,6 @@ import { Badge } from '@/components/ui/badge'
 import { 
   Printer, 
   Store, 
-  Receipt, 
   Check, 
   Copy, 
   Loader2,
@@ -250,9 +250,11 @@ export function InvoiceModal({
                 <div className="flex items-center justify-center gap-2 font-bold text-base text-primary">
                   {organization?.logo_url ? (
                     <div className="h-7 w-7 rounded overflow-hidden flex items-center justify-center shrink-0">
-                      <img
+                      <Image
                         src={organization.logo_url}
                         alt="Logo"
+                        width={28}
+                        height={28}
                         className="h-full w-full object-contain"
                       />
                     </div>

@@ -13,9 +13,10 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from '@/components/ui/sidebar'
-import { Home, Package, ShoppingCart, Users, Settings, LogOut, DollarSign, ArrowLeftRight, Undo2, Store, BarChart3, ListTodo, Sparkles, Plus, Clock, MessageSquare, Trash2, Radar } from 'lucide-react'
+import { Home, Package, ShoppingCart, Users, Settings, LogOut, DollarSign, ArrowLeftRight, Store, BarChart3, ListTodo, Sparkles, Plus, Clock, MessageSquare, Trash2, Radar } from 'lucide-react'
+import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { logout } from '@/app/actions/auth'
 import { UserRole } from '@/lib/auth-utils'
 import { ThemeToggleQuick } from '@/components/theme-toggle'
@@ -28,8 +29,8 @@ import { useOrganization } from '@/components/providers/organization-provider'
 export function AppSidebar({ role }: { role: UserRole }) {
   const { organization } = useOrganization()
   const pathname = usePathname()
+  const router = useRouter()
   const isEmployee = role === 'employee'
-  const isManager = role === 'manager'
   const isAdmin = role === 'admin' || role === 'owner'
 
   const [recentChats, setRecentChats] = React.useState<ChatSession[]>([])
@@ -68,9 +69,11 @@ export function AppSidebar({ role }: { role: UserRole }) {
         <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden group">
           {organization?.logo_url ? (
             <div className="h-8 w-8 rounded-lg overflow-hidden border border-border/60 bg-muted/20 flex items-center justify-center shrink-0">
-              <img
+              <Image
                 src={organization.logo_url}
                 alt={organization.name || 'Brand Logo'}
+                width={32}
+                height={32}
                 className="h-full w-full object-contain"
               />
             </div>
@@ -181,8 +184,8 @@ export function AppSidebar({ role }: { role: UserRole }) {
                               e.preventDefault()
                               e.stopPropagation()
                               deleteChatSession(chat.id)
-                              if (currentSessionId === chat.id && typeof window !== 'undefined') {
-                                window.location.href = '/chat'
+                              if (currentSessionId === chat.id) {
+                                router.push('/chat')
                               }
                             }}
                             className="opacity-0 group-hover/chat:opacity-100 p-1 rounded hover:bg-destructive/15 hover:text-destructive text-muted-foreground transition-all shrink-0"
