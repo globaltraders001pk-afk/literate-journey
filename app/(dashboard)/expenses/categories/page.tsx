@@ -2,6 +2,7 @@ import { getExpenseCategories } from '@/app/actions/expenses'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { CategoryForm } from './category-form'
+import { DeleteExpenseCategoryButton } from './delete-expense-category-button'
 
 export default async function ExpenseCategoriesPage() {
   const categories = await getExpenseCategories()
@@ -27,12 +28,13 @@ export default async function ExpenseCategoriesPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
+                <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {categories?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={2} className="text-center text-muted-foreground">
+                  <TableCell colSpan={3} className="text-center text-muted-foreground">
                     No expense categories found.
                   </TableCell>
                 </TableRow>
@@ -41,6 +43,9 @@ export default async function ExpenseCategoriesPage() {
                 <TableRow key={cat.id}>
                   <TableCell className="font-medium">{cat.name}</TableCell>
                   <TableCell>{cat.description || '-'}</TableCell>
+                  <TableCell>
+                    <DeleteExpenseCategoryButton categoryId={cat.id} categoryName={cat.name} />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

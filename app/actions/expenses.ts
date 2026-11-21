@@ -49,6 +49,34 @@ export async function createExpenseCategory(formData: FormData) {
   return { success: true }
 }
 
+export async function deleteExpenseCategory(id: string) {
+  try { await checkAccess(['admin', 'owner']) } catch { return { error: 'Unauthorized' } }
+
+  const supabase = await createClient()
+
+  // Refuse while any expense still uses the category, so the ledger
+  // never ends up pointing at a deleted classification.
+  const { count, error: countError } = await supabase
+    .from('expenses')
+    .select('*', { count: 'exact', head: true })
+    .eq('category_id', id)
+
+  if (countError) return { error: countError.message }
+  if (count && count > 0) {
+    return { error: `Cannot delete this category — it is still used by ${count} expense${count === 1 ? '' : 's'}. Move those expenses to another category first.` }
+  }
+
+  const { error } = await supabase
+    .from('expense_categories')
+    .delete()
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/expenses/categories')
+  return { success: true }
+}
+
 export async function getExpenses() {
   const supabase = await createClient()
   const { data, error } = await supabase
