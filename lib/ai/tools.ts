@@ -141,7 +141,8 @@ export const ERP_TOOLS: ToolDeclaration[] = [
         product_name: { type: 'STRING', description: 'Product being ordered' },
         quantity: { type: 'INTEGER', description: 'Number of units ordered' },
         unit_price: { type: 'NUMBER', description: 'Agreed unit price' },
-        po_number: { type: 'STRING', description: 'Custom PO number (if not provided, auto-generated)' }
+        po_number: { type: 'STRING', description: 'Custom PO number (if not provided, auto-generated)' },
+        confirm: { type: 'BOOLEAN', description: 'Set to true ONLY after the owner explicitly confirms this financial write. The first call without confirm returns a preview and writes nothing.' }
       },
       required: ['vendor_name', 'product_name', 'quantity', 'unit_price']
     }
@@ -239,7 +240,8 @@ export const ERP_TOOLS: ToolDeclaration[] = [
       type: 'OBJECT',
       properties: {
         month: { type: 'INTEGER', description: 'Month number (1 to 12)' },
-        year: { type: 'INTEGER', description: 'Year (e.g., 2026)' }
+        year: { type: 'INTEGER', description: 'Year (e.g., 2026)' },
+        confirm: { type: 'BOOLEAN', description: 'Set to true ONLY after the owner explicitly confirms this financial write. The first call without confirm returns a preview and writes nothing.' }
       },
       required: ['month', 'year']
     }
@@ -252,7 +254,8 @@ export const ERP_TOOLS: ToolDeclaration[] = [
       properties: {
         employee_name: { type: 'STRING', description: 'Name of the employee' },
         month: { type: 'INTEGER', description: 'Month number (1 to 12)' },
-        year: { type: 'INTEGER', description: 'Year (e.g., 2026)' }
+        year: { type: 'INTEGER', description: 'Year (e.g., 2026)' },
+        confirm: { type: 'BOOLEAN', description: 'Set to true ONLY after the owner explicitly confirms this financial write. The first call without confirm returns a preview and writes nothing.' }
       },
       required: ['employee_name', 'month', 'year']
     }
@@ -285,7 +288,8 @@ export const ERP_TOOLS: ToolDeclaration[] = [
         amount: { type: 'NUMBER', description: 'Total expense amount' },
         expense_date: { type: 'STRING', description: 'Date in YYYY-MM-DD (defaults to today if omitted)' },
         reference_number: { type: 'STRING', description: 'Receipt number or bill reference' },
-        notes: { type: 'STRING', description: 'Explanation or details of what was paid' }
+        notes: { type: 'STRING', description: 'Explanation or details of what was paid' },
+        confirm: { type: 'BOOLEAN', description: 'Set to true ONLY after the owner explicitly confirms this financial write. The first call without confirm returns a preview and writes nothing.' }
       },
       required: ['category_name', 'amount']
     }
@@ -421,7 +425,8 @@ export const ERP_TOOLS: ToolDeclaration[] = [
           enum: ['CASH', 'CARD', 'ONLINE', 'BANK_TRANSFER', 'CREDIT']
         },
         customer_name_or_phone: { type: 'STRING', description: 'Optional customer name or phone to attach to invoice' },
-        notes: { type: 'STRING', description: 'Optional remarks or sale memo' }
+        notes: { type: 'STRING', description: 'Optional remarks or sale memo' },
+        confirm: { type: 'BOOLEAN', description: 'Set to true ONLY after the owner explicitly confirms this financial write. The first call without confirm returns a preview and writes nothing.' }
       }
     }
   },

@@ -1,11 +1,44 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { ilikeContains, orIlike } from '@/lib/ai/ilike'
 
 export interface ToolExecutionResult {
   success: boolean
   action: string
   details: string
   data?: any
+  // Set when a financial write was NOT executed: the details hold
+  // a human-readable preview and the owner must confirm before
+  // the tool is called again with confirm: true.
+  requiresConfirmation?: boolean
+}
+
+// Financial writes through the chat never execute on first call
+// (QA audit M12): the executor returns a confirmation preview
+// instead, and only writes after the owner explicitly confirms
+// (args.confirm === true). Reads and non-financial writes are
+// unaffected.
+export const FINANCIAL_WRITE_TOOLS = new Set([
+  'create_sale_checkout',
+  'log_expense',
+  'create_purchase_order',
+  'generate_monthly_payroll',
+  'mark_payroll_paid',
+])
+
+function confirmationRequired(
+  action: string,
+  preview: string,
+  toolName: string,
+  args: Record<string, any>
+): ToolExecutionResult {
+  return {
+    success: false,
+    action: `${action} — Confirmation Required`,
+    details: `${preview} Nothing has been written yet. Reply "confirm" to proceed, or "cancel" to drop it.`,
+    requiresConfirmation: true,
+    data: { tool: toolName, args: { ...args, confirm: true }, preview },
+  }
 }
 
 export async function executeErpTool(
@@ -13,6 +46,17 @@ export async function executeErpTool(
   args: Record<string, any>,
   profile: { id: string; role: string; organization_id: string; full_name: string }
 ): Promise<ToolExecutionResult> {
+  // Own role check (QA audit M12 / S9): the route gate alone is
+  // not enough — the executor must refuse non-owners itself,
+  // since it is the layer that actually writes to the database.
+  if (profile.role !== 'owner') {
+    return {
+      success: false,
+      action: 'Forbidden',
+      details: 'The AI Agent is restricted to the business owner.',
+    }
+  }
+
   const supabase = await createClient()
   const orgId = profile.organization_id
 
@@ -126,7 +170,7 @@ export async function executeErpTool(
           .from('products')
           .select('id, name, sku')
           .eq('organization_id', orgId)
-          .or(`name.ilike.%${product_name_or_sku}%,sku.ilike.%${product_name_or_sku}%`)
+          .or(`${orIlike('name', product_name_or_sku)},${orIlike('sku', product_name_or_sku)}`)
           .limit(1)
 
         if (!products || products.length === 0) {
@@ -164,7 +208,7 @@ export async function executeErpTool(
           .from('products')
           .select('id, name, sku')
           .eq('organization_id', orgId)
-          .or(`name.ilike.%${product_name_or_sku}%,sku.ilike.%${product_name_or_sku}%`)
+          .or(`${orIlike('name', product_name_or_sku)},${orIlike('sku', product_name_or_sku)}`)
           .limit(1)
 
         if (!products || products.length === 0) {
@@ -207,7 +251,7 @@ export async function executeErpTool(
           .from('products')
           .select('id, name')
           .eq('organization_id', orgId)
-          .or(`name.ilike.%${product_name_or_sku}%,sku.ilike.%${product_name_or_sku}%`)
+          .or(`${orIlike('name', product_name_or_sku)},${orIlike('sku', product_name_or_sku)}`)
           .limit(1)
 
         if (!products || products.length === 0) {
@@ -286,7 +330,7 @@ export async function executeErpTool(
           .eq('is_active', true)
 
         if (filter === 'search' && search_query) {
-          query = query.or(`name.ilike.%${search_query}%,sku.ilike.%${search_query}%`)
+          query = query.or(`${orIlike('name', search_query)},${orIlike('sku', search_query)}`)
         }
 
         const { data: products } = await query
@@ -353,7 +397,7 @@ export async function executeErpTool(
           .from('vendors')
           .select('id, name')
           .eq('organization_id', orgId)
-          .ilike('name', `%${vendor_name}%`)
+          .ilike('name', ilikeContains(vendor_name))
           .limit(1)
 
         if (!vendors || vendors.length === 0) {
@@ -389,7 +433,7 @@ export async function executeErpTool(
           .from('vendors')
           .select('id, name')
           .eq('organization_id', orgId)
-          .ilike('name', `%${vendor_name}%`)
+          .ilike('name', ilikeContains(vendor_name))
           .limit(1)
 
         if (!vendors || vendors.length === 0) {
@@ -400,7 +444,7 @@ export async function executeErpTool(
           .from('products')
           .select('id, name')
           .eq('organization_id', orgId)
-          .ilike('name', `%${product_name}%`)
+          .ilike('name', ilikeContains(product_name))
           .limit(1)
 
         if (!products || products.length === 0) {
@@ -411,6 +455,15 @@ export async function executeErpTool(
         const product = products[0]
         const finalPoNum = po_number || `PO-${Date.now().toString().slice(-6)}`
         const totalAmount = Number(quantity) * Number(unit_price)
+
+        if (args.confirm !== true) {
+          return confirmationRequired(
+            'Purchase Order Issued',
+            `Purchase order ${finalPoNum} to "${vendor.name}": ${quantity} x "${product.name}" at Rs ${unit_price} each. Total: Rs ${totalAmount}.`,
+            'create_purchase_order',
+            args
+          )
+        }
 
         const { data: po, error: poError } = await supabase
           .from('purchase_orders')
@@ -511,7 +564,7 @@ export async function executeErpTool(
           .from('employees')
           .select('id, first_name, last_name')
           .eq('organization_id', orgId)
-          .or(`first_name.ilike.%${employee_name}%,last_name.ilike.%${employee_name}%`)
+          .or(`${orIlike('first_name', employee_name)},${orIlike('last_name', employee_name)}`)
           .limit(1)
 
         if (!employees || employees.length === 0) {
@@ -659,6 +712,15 @@ export async function executeErpTool(
           return { success: false, action: 'Payroll Failed', details: 'Year must be between 2000 and 2100.' }
         }
 
+        if (args.confirm !== true) {
+          return confirmationRequired(
+            'Payroll Generated',
+            `Generate payroll slips for all active employees for ${month}/${year} (draft slips at base salary; already-paid rows are left untouched).`,
+            'generate_monthly_payroll',
+            args
+          )
+        }
+
         const { data: employees } = await supabase
           .from('employees')
           .select('id, first_name, last_name, base_salary')
@@ -711,11 +773,20 @@ export async function executeErpTool(
       case 'mark_payroll_paid': {
         const { employee_name, month, year } = args
 
+        if (args.confirm !== true) {
+          return confirmationRequired(
+            'Payroll Paid',
+            `Mark salary as PAID for ${employee_name} for period ${month}/${year}.`,
+            'mark_payroll_paid',
+            args
+          )
+        }
+
         const { data: employees } = await supabase
           .from('employees')
           .select('id, first_name, last_name')
           .eq('organization_id', orgId)
-          .or(`first_name.ilike.%${employee_name}%,last_name.ilike.%${employee_name}%`)
+          .or(`${orIlike('first_name', employee_name)},${orIlike('last_name', employee_name)}`)
           .limit(1)
 
         if (!employees || employees.length === 0) {
@@ -791,6 +862,18 @@ export async function executeErpTool(
       // ==================== EXPENSES & FINANCE ====================
       case 'log_expense': {
         const { category_name, amount, expense_date, reference_number, notes } = args
+
+        // Confirmation first: the category lookup below can create
+        // a category row, so nothing at all happens before the
+        // owner confirms — not even the read side-effects.
+        if (args.confirm !== true) {
+          return confirmationRequired(
+            'Expense Logged',
+            `Expense of Rs ${Number(amount) || 0} under "${category_name || 'Uncategorized'}" on ${expense_date || 'today'}${reference_number ? ` (Ref: ${reference_number})` : ''}.`,
+            'log_expense',
+            args
+          )
+        }
 
         let categoryId: string | null = null
         if (category_name) {
@@ -884,7 +967,7 @@ export async function executeErpTool(
             .from('profiles')
             .select('id, full_name')
             .eq('organization_id', orgId)
-            .ilike('full_name', `%${assigned_to_name}%`)
+            .ilike('full_name', ilikeContains(assigned_to_name))
             .limit(1)
 
           if (userProfiles && userProfiles.length > 0) {
@@ -927,7 +1010,7 @@ export async function executeErpTool(
           .from('tasks')
           .select('id, title')
           .eq('organization_id', orgId)
-          .ilike('title', `%${task_title}%`)
+          .ilike('title', ilikeContains(task_title))
           .limit(1)
 
         if (!tasks || tasks.length === 0) {
@@ -1053,7 +1136,7 @@ export async function executeErpTool(
           .eq('organization_id', orgId)
 
         if (search) {
-          query = query.or(`name.ilike.%${search}%,phone.ilike.%${search}%`)
+          query = query.or(`${orIlike('name', search)},${orIlike('phone', search)}`)
         }
 
         const { data: customers } = await query
@@ -1106,7 +1189,7 @@ export async function executeErpTool(
             .from('products')
             .select('id, name, sku, selling_price')
             .eq('organization_id', orgId)
-            .or(`name.ilike.%${it.product_name_or_sku}%,sku.ilike.%${it.product_name_or_sku}%`)
+            .or(`${orIlike('name', it.product_name_or_sku)},${orIlike('sku', it.product_name_or_sku)}`)
             .limit(1)
 
           if (!products || products.length === 0) {
@@ -1141,7 +1224,7 @@ export async function executeErpTool(
             .from('customers')
             .select('id, name')
             .eq('organization_id', orgId)
-            .or(`name.ilike.%${customer_name_or_phone}%,phone.ilike.%${customer_name_or_phone}%`)
+            .or(`${orIlike('name', customer_name_or_phone)},${orIlike('phone', customer_name_or_phone)}`)
             .limit(1)
 
           if (customers && customers.length > 0) {
@@ -1173,6 +1256,21 @@ export async function executeErpTool(
         // INV-<Date.now> itself and inserted the legs in
         // parallel with unchecked results, so a failure left a
         // half-written sale with a timestamp serial.
+        // Confirmation gate (QA audit M12): the priced preview is
+        // built from catalog prices above (reads only) and the
+        // money never moves until the owner confirms. The RPC
+        // below is the only write in this tool.
+        if (args.confirm !== true) {
+          const exGstSubtotal = resolvedItems.reduce((sum, i) => sum + i.subtotal, 0)
+          const itemSummary = resolvedItems.map(i => `${i.quantity}x ${i.product_name} (Rs ${i.subtotal})`).join(', ')
+          return confirmationRequired(
+            'Sale Checkout Completed',
+            `Checkout preview: ${itemSummary}. Subtotal Rs ${exGstSubtotal} (ex-GST; GST is added at checkout at the org rate) via ${normalizedPayment}${customerDisplayName ? ` for ${customerDisplayName}` : ''}.`,
+            'create_sale_checkout',
+            args
+          )
+        }
+
         const { data: checkout, error: checkoutError } = await supabase.rpc('process_checkout', {
           p_customer_id: customerId,
           p_payment_method: normalizedPayment,
