@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { createSimplePO } from '@/app/actions/purchases'
 import { Plus } from 'lucide-react'
 
-export function PurchaseForm({ vendors, products }: { vendors: any[], products: any[] }) {
+export function PurchaseForm({ vendors, products }: { vendors: Array<{ id: string; name: string }>, products: Array<{ id: string; name: string; cost_price?: number | string | null }> }) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
 

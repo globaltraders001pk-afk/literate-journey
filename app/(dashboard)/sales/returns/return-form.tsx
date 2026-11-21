@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { processReturn } from '@/app/actions/returns'
 import { Undo2 } from 'lucide-react'
 
-export function ReturnForm({ products, customers }: { products: any[], customers: any[] }) {
+export function ReturnForm({ products, customers }: { products: Array<{ id: string; name: string }>, customers: Array<{ id: string; name: string }> }) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
 

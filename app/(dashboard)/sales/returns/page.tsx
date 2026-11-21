@@ -47,7 +47,7 @@ export default async function ReturnsPage() {
                   </TableCell>
                 </TableRow>
               )}
-              {returns?.map((ret: any) => {
+              {returns?.map((ret: { id: string; return_number?: string | null; refund_amount?: number | string | null; created_at: string; customers?: { name?: string | null } | null; return_items?: Array<{ quantity?: number | null; return_action: string; products?: { name?: string | null } | null }> | null }) => {
                 const item = ret.return_items?.[0]
                 return (
                   <TableRow key={ret.id}>

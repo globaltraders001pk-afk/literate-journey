@@ -18,7 +18,22 @@ import { History, Receipt } from 'lucide-react'
 
 export function VendorOrdersDialog({ vendorId, vendorName }: { vendorId: string, vendorName: string }) {
   const [open, setOpen] = useState(false)
-  const [orders, setOrders] = useState<any[]>([])
+  interface VendorOrder {
+    id: string
+    po_number?: string | null
+    status?: string | null
+    total_amount?: number | string | null
+    created_at: string
+    purchase_order_items?: Array<{
+      id: string
+      quantity?: number | null
+      unit_cost?: number | string | null
+      subtotal?: number | string | null
+      products?: { name?: string | null } | null
+    }> | null
+  }
+
+  const [orders, setOrders] = useState<VendorOrder[]>([])
   const [loading, setLoading] = useState(false)
 
   const handleOpen = async (isOpen: boolean) => {
@@ -31,7 +46,7 @@ export function VendorOrdersDialog({ vendorId, vendorName }: { vendorId: string,
     }
   }
 
-  const totalSpent = orders.reduce((sum, o) => sum + (parseFloat(o.total_amount) || 0), 0)
+  const totalSpent = orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0)
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
@@ -96,7 +111,7 @@ export function VendorOrdersDialog({ vendorId, vendorName }: { vendorId: string,
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {po.purchase_order_items.map((item: any) => (
+                        {po.purchase_order_items.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell className="py-1 font-medium">{item.products?.name || 'Raw Material'}</TableCell>
                             <TableCell className="py-1 text-center">{item.quantity}</TableCell>

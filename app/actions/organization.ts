@@ -266,8 +266,8 @@ export async function uploadOrganizationLogo(formData: FormData) {
     revalidatePath('/', 'layout')
 
     return { success: true, logo_url: logoUrl, organization: updatedOrg }
-  } catch (err: any) {
-    return { error: err.message || 'An unexpected error occurred during logo upload.' }
+  } catch (err: unknown) {
+    return { error: err instanceof Error ? err.message : 'An unexpected error occurred during logo upload.' }
   }
 }
 

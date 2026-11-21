@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { createExpense } from '@/app/actions/expenses'
 import { Plus } from 'lucide-react'
 
-export function ExpenseForm({ categories }: { categories: any[] }) {
+export function ExpenseForm({ categories }: { categories: Array<{ id: string; name: string }> }) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
 

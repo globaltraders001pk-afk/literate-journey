@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { createMovement } from '@/app/actions/inventory'
 import { Plus } from 'lucide-react'
 
-export function MovementForm({ products }: { products: any[] }) {
+export function MovementForm({ products }: { products: Array<{ id: string; name: string; sku?: string | null }> }) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
 

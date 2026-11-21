@@ -9,7 +9,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { createEmployee, updateEmployee } from '@/app/actions/employees'
 import { Plus, Pencil } from 'lucide-react'
 
-export function EmployeeForm({ initialData }: { initialData?: any }) {
+export interface EmployeeFormData {
+  id: string
+  first_name?: string
+  last_name?: string
+  phone?: string
+  email?: string
+  role?: string
+  employment_type?: string
+  base_salary?: number | string
+  profile_id?: string
+  profiles?: { role?: string } | null
+  is_active?: boolean
+}
+
+export function EmployeeForm({ initialData }: { initialData?: EmployeeFormData }) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
 
@@ -17,7 +31,7 @@ export function EmployeeForm({ initialData }: { initialData?: any }) {
 
   async function handleSubmit(formData: FormData) {
     setPending(true)
-    const result = isEditing ? await updateEmployee(initialData.id, formData) : await createEmployee(formData)
+    const result = isEditing ? await updateEmployee(initialData!.id, formData) : await createEmployee(formData)
     setPending(false)
     
     if (result?.error) {

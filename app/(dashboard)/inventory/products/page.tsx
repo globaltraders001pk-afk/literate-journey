@@ -69,7 +69,7 @@ async function ProductsDataLoader() {
                   </TableCell>
                 </TableRow>
               )}
-              {products?.map((prod: any) => (
+              {products?.map((prod: { id: string; name: string; sku?: string | null; cost_price?: number | string | null; selling_price?: number | string | null; weight?: string | null; is_active?: boolean | null; categories?: { name?: string | null } | null }) => (
                 <TableRow key={prod.id}>
                   <TableCell className="font-medium">{prod.name}</TableCell>
                   <TableCell>{prod.categories?.name || '-'}</TableCell>

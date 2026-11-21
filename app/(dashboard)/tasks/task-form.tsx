@@ -23,7 +23,7 @@ import {
 import { createTask } from '@/app/actions/tasks'
 import { Plus } from 'lucide-react'
 
-export function TaskForm({ assignees }: { assignees: any[] }) {
+export function TaskForm({ assignees }: { assignees: Array<{ id: string; full_name: string; role?: string }> }) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
 

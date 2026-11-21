@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { createCategory, updateCategory } from '@/app/actions/inventory'
 import { Plus, Pencil } from 'lucide-react'
 
-export function CategoryForm({ initialData }: { initialData?: any }) {
+export function CategoryForm({ initialData }: { initialData?: { id: string; name?: string; description?: string } }) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
 
@@ -17,7 +17,7 @@ export function CategoryForm({ initialData }: { initialData?: any }) {
   async function handleSubmit(formData: FormData) {
     setPending(true)
     if (isEditing) {
-      await updateCategory(initialData.id, formData)
+      await updateCategory(initialData!.id, formData)
     } else {
       await createCategory(formData)
     }

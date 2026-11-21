@@ -15,8 +15,8 @@ export function TasksClient({
   assignees,
   userRole,
 }: {
-  tasks: any[]
-  assignees: any[]
+  tasks: Array<{ id: string; title: string; description?: string | null; priority?: string | null; status: string; due_date?: string | null; assigned_to_profile?: { full_name?: string | null } | null }>
+  assignees: Array<{ id: string; full_name: string; role?: string }>
   userRole: string
 }) {
   const [loadingId, setLoadingId] = useState<string | null>(null)
@@ -156,7 +156,7 @@ export function TasksClient({
                   <TableCell>
                     <Select
                       value={task.status}
-                      onValueChange={(val) => handleStatusChange(task.id, val)}
+                      onValueChange={(val) => { if (val) void handleStatusChange(task.id, val) }}
                       disabled={loadingId === task.id}
                     >
                       <SelectTrigger className="h-8 w-32 text-xs">

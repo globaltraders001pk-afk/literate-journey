@@ -62,7 +62,7 @@ export default async function BatchesPage() {
                   </TableCell>
                 </TableRow>
               )}
-              {batches?.map((batch: any) => {
+              {batches?.map((batch: { id: string; batch_number?: string | null; manufacturing_date?: string | null; expiry_date: string | null; quantity_received?: number | null; quantity_remaining?: number | null; products?: { name?: string | null } | null }) => {
                 const status = getExpiryStatus(batch.expiry_date)
                 return (
                   <TableRow key={batch.id}>

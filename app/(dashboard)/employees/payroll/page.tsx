@@ -57,7 +57,7 @@ export default async function PayrollPage({
                   </TableCell>
                 </TableRow>
               )}
-              {payrolls?.map((p: any) => (
+              {payrolls?.map((p: { id: string; basic_salary?: number | string | null; deductions?: number | string | null; net_salary?: number | string | null; status?: string | null; employees?: { first_name?: string | null; last_name?: string | null } | null }) => (
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.employees?.first_name} {p.employees?.last_name}</TableCell>
                   <TableCell>{formatPKR(p.basic_salary)}</TableCell>

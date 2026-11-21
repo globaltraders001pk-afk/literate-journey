@@ -45,7 +45,7 @@ export default async function MovementsPage() {
                   </TableCell>
                 </TableRow>
               )}
-              {movements?.map((mov: any) => (
+              {((movements || []) as unknown as Array<{ id: string; movement_type: string; quantity: number; notes?: string | null; created_at: string; products?: { name?: string | null; sku?: string | null } | null; profiles?: { full_name?: string | null } | null }>)?.map((mov) => (
                 <TableRow key={mov.id}>
                   <TableCell>{new Date(mov.created_at).toLocaleString()}</TableCell>
                   <TableCell className="font-medium">{mov.products?.name} ({mov.products?.sku})</TableCell>

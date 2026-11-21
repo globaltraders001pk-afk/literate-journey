@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { createBatch } from '@/app/actions/inventory'
 import { Plus } from 'lucide-react'
 
-export function BatchForm({ products }: { products: any[] }) {
+export function BatchForm({ products }: { products: Array<{ id: string; name: string }> }) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
 

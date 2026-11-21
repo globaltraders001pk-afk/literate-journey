@@ -597,7 +597,7 @@ export async function getDashboardStats() {
   
   // 1. Get low stock products
   const productsData = await getStockLevels()
-  const lowStockProducts = productsData.filter((p: any) => p.status === 'Low Stock').length
+  const lowStockProducts = productsData.filter((p) => p.status === 'Low Stock').length
 
   // 2. Get expiring batches (next 30 days)
   const { data: batches } = await supabase

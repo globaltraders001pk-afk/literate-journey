@@ -16,7 +16,7 @@ import {
 import { createVendor, updateVendor } from '@/app/actions/vendors'
 import { Plus, Pencil } from 'lucide-react'
 
-export function VendorForm({ initialData }: { initialData?: any }) {
+export function VendorForm({ initialData }: { initialData?: { id: string; name?: string; contact_person?: string; phone?: string; email?: string; items_supplied?: string; rates?: string; address?: string } }) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
 
@@ -25,7 +25,7 @@ export function VendorForm({ initialData }: { initialData?: any }) {
   async function handleSubmit(formData: FormData) {
     setPending(true)
     if (isEditing) {
-      await updateVendor(initialData.id, formData)
+      await updateVendor(initialData!.id, formData)
     } else {
       await createVendor(formData)
     }

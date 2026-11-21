@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { getStockLevels } from '@/app/actions/inventory'
+import type { StockLevel } from '@/app/actions/inventory'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -47,7 +48,7 @@ async function StockDataLoader() {
                   </TableCell>
                 </TableRow>
               )}
-              {stockLevels?.map((stock: any) => (
+              {stockLevels?.map((stock: StockLevel) => (
                 <TableRow key={stock.id}>
                   <TableCell className="font-medium">{stock.name}</TableCell>
                   <TableCell>{stock.sku}</TableCell>

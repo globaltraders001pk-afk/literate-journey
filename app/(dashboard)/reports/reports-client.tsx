@@ -25,9 +25,9 @@ import {
 export type ReportsData = NonNullable<Awaited<ReturnType<typeof getComprehensiveReports>>>
 
 export function ReportsClient({ data }: { data: ReportsData | null }) {
-  if (!data) return null
   const [activeTab, setActiveTab] = useState<'sales' | 'inventory' | 'vendors' | 'pnl'>('sales')
   const [salesPeriod, setSalesPeriod] = useState<'today' | 'week' | 'month' | 'all'>('month')
+  if (!data) return null
 
   const { salesMetrics, stockMetrics, vendorMetrics, pnlSummary, userRole } = data
   const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin'

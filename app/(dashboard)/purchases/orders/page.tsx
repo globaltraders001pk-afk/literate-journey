@@ -49,7 +49,7 @@ export default async function PurchaseOrdersPage() {
                   </TableCell>
                 </TableRow>
               )}
-              {orders?.map((po: any) => {
+              {orders?.map((po: { id: string; po_number?: string | null; status: string; total_amount?: number | string | null; vendors?: { name?: string | null } | null; purchase_order_items?: Array<{ id: string; product_id: string; quantity: number; products?: { name?: string | null } | null }> | null }) => {
                 const item = po.purchase_order_items?.[0]
                 return (
                   <TableRow key={po.id}>

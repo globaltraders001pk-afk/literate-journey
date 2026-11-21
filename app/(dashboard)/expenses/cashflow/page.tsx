@@ -104,7 +104,7 @@ export default async function CashflowPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {expenses?.map((exp: any, idx: number) => {
+              {expenses?.map((exp: { amount?: number | string | null; expense_categories?: { name?: string | null } | Array<{ name?: string | null }> | null }, idx: number) => {
                 const catName = Array.isArray(exp.expense_categories) ? exp.expense_categories[0]?.name : exp.expense_categories?.name
                 return (
                   <TableRow key={idx}>
