@@ -3,12 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { BatchForm } from './batch-form'
+import { truncationNote } from '@/lib/pagination'
 
 export default async function BatchesPage() {
-  const [batches, products] = await Promise.all([
+  const [{ rows: batches, total: batchesTotal }, { rows: products }] = await Promise.all([
     getBatches(),
     getProducts()
   ])
+  const batchesNote = truncationNote(batchesTotal, batches.length, 'batches')
 
   // Helper to color code expiry. Batches with no known expiry date
   // (auto-created from stock-in without one) show "No Expiry".
@@ -31,7 +33,7 @@ export default async function BatchesPage() {
           <h1 className="text-2xl font-semibold tracking-normal">Product Batches & Expiry</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Track perishable inventory batches and expiry dates.</p>
         </div>
-        <BatchForm products={products || []} />
+        <BatchForm products={products} />
       </div>
 
       <Card>
@@ -80,6 +82,9 @@ export default async function BatchesPage() {
               })}
             </TableBody>
           </Table>
+          {batchesNote && (
+            <p className="text-xs text-muted-foreground mt-3">{batchesNote}</p>
+          )}
         </CardContent>
       </Card>
     </div>

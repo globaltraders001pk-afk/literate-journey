@@ -9,6 +9,7 @@ import { ExportProductsButton } from './export-products-button'
 import { Badge } from '@/components/ui/badge'
 import ProductsLoading from './loading'
 import { formatPKR } from '@/lib/format-currency'
+import { truncationNote } from '@/lib/pagination'
 
 export default function ProductsPage() {
   return (
@@ -19,11 +20,12 @@ export default function ProductsPage() {
 }
 
 async function ProductsDataLoader() {
-  const [products, categories, profile] = await Promise.all([
+  const [{ rows: products, total: productsTotal }, categories, profile] = await Promise.all([
     getProducts(),
     getCategories(),
     getUserProfile()
   ])
+  const productsNote = truncationNote(productsTotal, products.length, 'products')
 
   const canViewCost = profile?.role === 'owner' || profile?.role === 'admin'
 
@@ -35,7 +37,7 @@ async function ProductsDataLoader() {
           <p className="text-sm text-muted-foreground mt-0.5">Manage your product catalog, weights, and pricing.</p>
         </div>
         <div className="flex items-center gap-2">
-          <ExportProductsButton products={products || []} canViewCost={canViewCost} />
+          <ExportProductsButton products={products} canViewCost={canViewCost} />
           <ProductForm categories={categories || []} canViewCost={canViewCost} />
         </div>
       </div>
@@ -90,6 +92,9 @@ async function ProductsDataLoader() {
               ))}
             </TableBody>
           </Table>
+          {productsNote && (
+            <p className="text-xs text-muted-foreground mt-3">{productsNote}</p>
+          )}
         </CardContent>
       </Card>
     </div>

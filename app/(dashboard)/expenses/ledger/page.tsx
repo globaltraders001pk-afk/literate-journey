@@ -4,12 +4,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { ExpenseForm } from './expense-form'
 import { formatPKR } from '@/lib/format-currency'
+import { truncationNote } from '@/lib/pagination'
 
 export default async function ExpensesLedgerPage() {
-  const [expenses, categories] = await Promise.all([
+  const [{ rows: expenses, total: expensesTotal }, categories] = await Promise.all([
     getExpenses(),
     getExpenseCategories()
   ])
+  const expensesNote = truncationNote(expensesTotal, expenses.length, 'expenses')
 
   return (
     <div className="space-y-6">
@@ -62,6 +64,9 @@ export default async function ExpensesLedgerPage() {
               ))}
             </TableBody>
           </Table>
+          {expensesNote && (
+            <p className="text-xs text-muted-foreground mt-3">{expensesNote}</p>
+          )}
         </CardContent>
       </Card>
     </div>

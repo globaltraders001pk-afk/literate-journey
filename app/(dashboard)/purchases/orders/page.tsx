@@ -7,13 +7,12 @@ import { Badge } from '@/components/ui/badge'
 import { PurchaseForm } from './purchase-form'
 import { ReceiveButton } from './receive-button'
 import { formatPKR } from '@/lib/format-currency'
+import { truncationNote } from '@/lib/pagination'
 
 export default async function PurchaseOrdersPage() {
-  const [orders, vendors, products] = await Promise.all([
-    getPurchaseOrders(),
-    getVendors(),
-    getProducts()
-  ])
+  const [{ rows: orders, total: ordersTotal }, { rows: vendors }, { rows: products }] =
+    await Promise.all([getPurchaseOrders(), getVendors(), getProducts()])
+  const ordersNote = truncationNote(ordersTotal, orders.length, 'purchase orders')
 
   return (
     <div className="space-y-6">
@@ -22,7 +21,7 @@ export default async function PurchaseOrdersPage() {
           <h1 className="text-2xl font-semibold tracking-normal">Purchase Orders</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage your purchasing and receiving.</p>
         </div>
-        <PurchaseForm vendors={vendors || []} products={products || []} />
+        <PurchaseForm vendors={vendors} products={products} />
       </div>
 
       <Card>
@@ -80,6 +79,9 @@ export default async function PurchaseOrdersPage() {
               })}
             </TableBody>
           </Table>
+          {ordersNote && (
+            <p className="text-xs text-muted-foreground mt-3">{ordersNote}</p>
+          )}
         </CardContent>
       </Card>
     </div>

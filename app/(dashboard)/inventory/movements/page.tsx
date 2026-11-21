@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { MovementForm } from './movement-form'
 
 export default async function MovementsPage() {
-  const [movements, products] = await Promise.all([
+  const [movements, { rows: products }] = await Promise.all([
     getMovements(),
     getProducts()
   ])
@@ -17,7 +17,7 @@ export default async function MovementsPage() {
           <h1 className="text-2xl font-semibold tracking-normal">Inventory Movements</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Log and view all stock changes.</p>
         </div>
-        <MovementForm products={products || []} />
+        <MovementForm products={products} />
       </div>
 
       <Card>

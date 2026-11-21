@@ -5,13 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { ReturnForm } from './return-form'
+import { truncationNote } from '@/lib/pagination'
 
 export default async function ReturnsPage() {
-  const [returns, products, customers] = await Promise.all([
-    getReturns(),
-    getProducts(),
-    getCustomers()
-  ])
+  const [{ rows: returns, total: returnsTotal }, { rows: products }, { rows: customers }] =
+    await Promise.all([getReturns(), getProducts(), getCustomers()])
+  const returnsNote = truncationNote(returnsTotal, returns.length, 'returns')
 
   return (
     <div className="space-y-6">
@@ -20,7 +19,7 @@ export default async function ReturnsPage() {
           <h1 className="text-2xl font-semibold tracking-normal">Returns</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Process customer returns and update inventory.</p>
         </div>
-        <ReturnForm products={products || []} customers={customers || []} />
+        <ReturnForm products={products} customers={customers} />
       </div>
 
       <Card>
@@ -71,6 +70,9 @@ export default async function ReturnsPage() {
               })}
             </TableBody>
           </Table>
+          {returnsNote && (
+            <p className="text-xs text-muted-foreground mt-3">{returnsNote}</p>
+          )}
         </CardContent>
       </Card>
     </div>

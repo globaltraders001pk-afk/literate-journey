@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { AttendanceForm } from './attendance-form'
+import { truncationNote } from '@/lib/pagination'
 import { CalendarCheck, Clock, UserCheck } from 'lucide-react'
 
 export default async function AttendancePage({
@@ -15,11 +16,12 @@ export default async function AttendancePage({
   const today = new Date().toISOString().split('T')[0]
   const date = params.date || today
 
-  const [employees, attendance, profile] = await Promise.all([
+  const [{ rows: employees, total: employeesTotal }, attendance, profile] = await Promise.all([
     getEmployees(),
     getAttendance(date),
     getUserProfile()
   ])
+  const employeesNote = truncationNote(employeesTotal, employees.length, 'employees')
 
   const isEmployee = profile?.role === 'employee'
 
@@ -188,6 +190,9 @@ export default async function AttendancePage({
               })}
             </TableBody>
           </Table>
+          {employeesNote && (
+            <p className="text-xs text-muted-foreground mt-3">{employeesNote}</p>
+          )}
         </CardContent>
       </Card>
     </div>

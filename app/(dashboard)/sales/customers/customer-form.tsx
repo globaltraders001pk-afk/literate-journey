@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { createCustomer } from '@/app/actions/sales'
 import { Plus } from 'lucide-react'
@@ -14,8 +15,14 @@ export function CustomerForm() {
 
   async function handleSubmit(formData: FormData) {
     setPending(true)
-    await createCustomer(formData)
+    const result = await createCustomer(formData)
     setPending(false)
+    // The server rejects an invalid NTN or buyer type — show it
+    // instead of closing the dialog as if the save worked.
+    if (result?.error) {
+      alert(result.error)
+      return
+    }
     setOpen(false)
   }
 
@@ -57,7 +64,16 @@ export function CustomerForm() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="buyer_type">Buyer Type</Label>
-                <Input id="buyer_type" name="buyer_type" placeholder="e.g. Registered, Unregistered" />
+                <Select name="buyer_type" defaultValue="">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select buyer type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Not specified</SelectItem>
+                    <SelectItem value="Registered">Registered</SelectItem>
+                    <SelectItem value="Unregistered">Unregistered</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

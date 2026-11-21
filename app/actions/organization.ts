@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUserProfile, ORGANIZATION_PUBLIC_COLUMNS } from '@/lib/auth-utils'
+import { isValidIban, isValidNtn } from '@/lib/validation'
 import { revalidatePath } from 'next/cache'
 
 export async function getPublicBrand() {
@@ -108,12 +109,21 @@ export async function updateFbrSettings(formData: FormData) {
   }
 
   const ntn = (formData.get('ntn') as string)?.trim()
+  // NTN / IBAN are printed on every invoice (M15): a malformed
+  // value stored here goes straight onto a tax invoice. Empty is
+  // fine (not set yet); a filled value must be well-formed.
+  if (ntn && !isValidNtn(ntn)) {
+    return { error: 'NTN must be 7 digits, with an optional -X suffix (e.g. 1234567-8)' }
+  }
   const fbr_token = (formData.get('fbr_token') as string)?.trim()
   // Invoice prefix: uppercase letters/digits/hyphen only, max 10 chars. Defaults to GT-226.
   const rawPrefix = (formData.get('invoice_prefix') as string)?.trim().toUpperCase() || 'GT-226'
   const invoice_prefix = rawPrefix.replace(/[^A-Z0-9-]/g, '').slice(0, 10) || 'GT-226'
   const bank_name = (formData.get('bank_name') as string)?.trim()
   const bank_iban = (formData.get('bank_iban') as string)?.trim()
+  if (bank_iban && !isValidIban(bank_iban)) {
+    return { error: 'IBAN is not valid (check the country code, check digits and account number)' }
+  }
   const dispatch_text = (formData.get('dispatch_text') as string)?.trim()
   // Payment terms in days (0 = due immediately), clamped 0–365, default 10.
   const rawTerms = parseInt((formData.get('payment_terms_days') as string) || '', 10)

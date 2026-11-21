@@ -5,10 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { EmployeeForm } from './employee-form'
+import { truncationNote } from '@/lib/pagination'
 
 export default async function EmployeesPage() {
   await checkAccess(['admin', 'owner', 'manager'])
-  const employees = await getEmployees()
+  const { rows: employees, total: employeesTotal } = await getEmployees()
+  const employeesNote = truncationNote(employeesTotal, employees.length, 'employees')
 
   return (
     <div className="space-y-6">
@@ -77,6 +79,9 @@ export default async function EmployeesPage() {
               ))}
             </TableBody>
           </Table>
+          {employeesNote && (
+            <p className="text-xs text-muted-foreground mt-3">{employeesNote}</p>
+          )}
         </CardContent>
       </Card>
     </div>

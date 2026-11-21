@@ -38,7 +38,7 @@ interface CompletedSale {
   total: number
 }
 
-export function POSClient({ products, customers }: { products: any[], customers: any[] }) {
+export function POSClient({ products, customers, stockByProduct }: { products: any[], customers: any[], stockByProduct?: Record<string, number> }) {
   const { organization } = useOrganization()
   const [cart, setCart] = useState<CartItem[]>([])
   const [customerId, setCustomerId] = useState<string>('')
@@ -47,6 +47,10 @@ export function POSClient({ products, customers }: { products: any[], customers:
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null)
   const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  // Shown when the stock cap below refuses a tap. The server is
+  // still authoritative: it re-checks stock and refuses the
+  // checkout if stock ran out after the page loaded.
+  const [cartNotice, setCartNotice] = useState<string | null>(null)
 
   // Filter active products only
   const activeProducts = products.filter(p => p.is_active)
@@ -60,12 +64,24 @@ export function POSClient({ products, customers }: { products: any[], customers:
     p.sku?.toLowerCase().includes(query)
   )
 
+  // Defense-in-depth stock cap (QA audit C3): the cart may never
+  // hold more of a product than the page-load stock count. The
+  // server re-checks stock inside the checkout transaction and
+  // refuses overselling, so this is only the cashier-facing
+  // guard — a stale count here can never oversell.
   const addToCart = (product: any) => {
+    const stock = stockByProduct?.[product.id]
+    const inCart = cart.find(item => item.product_id === product.id)?.quantity ?? 0
+    if (stock !== undefined && inCart + 1 > stock) {
+      setCartNotice(`Only ${stock} in stock for ${product.name} — cannot add more.`)
+      return
+    }
+    setCartNotice(null)
     setCart(prev => {
       const existing = prev.find(item => item.product_id === product.id)
       if (existing) {
-        return prev.map(item => 
-          item.product_id === product.id 
+        return prev.map(item =>
+          item.product_id === product.id
             ? { ...item, quantity: item.quantity + 1, subtotal: (item.quantity + 1) * item.unit_price }
             : item
         )
@@ -81,9 +97,17 @@ export function POSClient({ products, customers }: { products: any[], customers:
   }
 
   const updateQuantity = (productId: string, delta: number) => {
+    const stock = stockByProduct?.[productId]
+    const item = cart.find(i => i.product_id === productId)
+    if (!item) return
+    const newQuantity = Math.max(1, item.quantity + delta)
+    if (stock !== undefined && newQuantity > stock) {
+      setCartNotice(`Only ${stock} in stock for ${item.name} — cannot add more.`)
+      return
+    }
+    setCartNotice(null)
     setCart(prev => prev.map(item => {
       if (item.product_id === productId) {
-        const newQuantity = Math.max(1, item.quantity + delta)
         return { ...item, quantity: newQuantity, subtotal: newQuantity * item.unit_price }
       }
       return item
@@ -120,7 +144,9 @@ export function POSClient({ products, customers }: { products: any[], customers:
         customerName,
         paymentMethod: paymentSnapshot,
         items: cartSnapshot,
-        total: totalSnapshot,
+        // The server-computed total (catalog prices) — never the
+        // cart's own total, which the server does not trust.
+        total: result.total_amount ?? totalSnapshot,
       })
       setCart([])
       setCustomerId('')
@@ -284,6 +310,9 @@ export function POSClient({ products, customers }: { products: any[], customers:
           </CardHeader>
           
           <CardContent className="flex-1 overflow-auto space-y-4 min-h-[250px]">
+            {cartNotice && (
+              <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-2 py-1.5">{cartNotice}</p>
+            )}
             {cart.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-center p-8">
                 <ShoppingCart className="h-8 w-8 mb-2 opacity-50" />

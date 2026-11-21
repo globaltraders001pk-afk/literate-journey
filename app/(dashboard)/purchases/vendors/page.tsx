@@ -3,10 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { VendorForm } from './vendor-form'
+import { truncationNote } from '@/lib/pagination'
 import { VendorOrdersDialog } from './vendor-orders-dialog'
 
 export default async function VendorsPage() {
-  const vendors = await getVendors()
+  const { rows: vendors, total: vendorsTotal } = await getVendors()
+  const vendorsNote = truncationNote(vendorsTotal, vendors.length, 'vendors')
 
   return (
     <div className="space-y-6">
@@ -73,6 +75,9 @@ export default async function VendorsPage() {
               ))}
             </TableBody>
           </Table>
+          {vendorsNote && (
+            <p className="text-xs text-muted-foreground mt-3">{vendorsNote}</p>
+          )}
         </CardContent>
       </Card>
     </div>

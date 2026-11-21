@@ -2,9 +2,11 @@ import { getCustomers } from '@/app/actions/sales'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { CustomerForm } from './customer-form'
+import { truncationNote } from '@/lib/pagination'
 
 export default async function CustomersPage() {
-  const customers = await getCustomers()
+  const { rows: customers, total: customersTotal } = await getCustomers()
+  const customersNote = truncationNote(customersTotal, customers.length, 'customers')
 
   return (
     <div className="space-y-6">
@@ -51,6 +53,9 @@ export default async function CustomersPage() {
               ))}
             </TableBody>
           </Table>
+          {customersNote && (
+            <p className="text-xs text-muted-foreground mt-3">{customersNote}</p>
+          )}
         </CardContent>
       </Card>
     </div>
