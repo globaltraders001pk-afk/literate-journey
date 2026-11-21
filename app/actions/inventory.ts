@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { checkAccess, getUserProfile } from '@/lib/auth-utils'
+import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { generateAutoBatchNumber } from '@/lib/batch-number'
 import { revalidatePath } from 'next/cache'
 
@@ -118,7 +119,8 @@ export async function getProducts() {
 export async function createProduct(formData: FormData) {
   try {
     await checkAccess(['admin', 'owner', 'manager'])
-  } catch {
+  } catch (err) {
+    if (isRedirectError(err)) throw err
     return { error: 'Unauthorized to add products' }
   }
 
@@ -168,7 +170,8 @@ export async function createProduct(formData: FormData) {
 export async function updateProduct(id: string, formData: FormData) {
   try {
     await checkAccess(['admin', 'owner', 'manager'])
-  } catch {
+  } catch (err) {
+    if (isRedirectError(err)) throw err
     return { error: 'Unauthorized to edit products' }
   }
 
@@ -216,7 +219,8 @@ export async function updateProduct(id: string, formData: FormData) {
 export async function deleteProduct(id: string) {
   try {
     await checkAccess(['admin', 'owner', 'manager'])
-  } catch {
+  } catch (err) {
+    if (isRedirectError(err)) throw err
     return { error: 'Unauthorized to delete products' }
   }
 

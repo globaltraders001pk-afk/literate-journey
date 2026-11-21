@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 import { checkAccess, getUserProfile } from '@/lib/auth-utils'
+import { isRedirectError } from 'next/dist/client/components/redirect-error'
 
 function validatePeriod(month: number, year: number): string | null {
   if (!Number.isInteger(month) || month < 1 || month > 12) return 'Month must be between 1 and 12'
@@ -12,7 +13,7 @@ function validatePeriod(month: number, year: number): string | null {
 }
 
 export async function generatePayroll(month: number, year: number) {
-  try { await checkAccess(['admin', 'owner']) } catch { return { error: 'Unauthorized' } }
+  try { await checkAccess(['admin', 'owner']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
 
   const periodError = validatePeriod(month, year)
   if (periodError) return { error: periodError }
@@ -103,7 +104,7 @@ export async function getPayroll(month: number, year: number) {
 }
 
 export async function payPayroll(payrollId: string) {
-  try { await checkAccess(['admin', 'owner']) } catch { return { error: 'Unauthorized' } }
+  try { await checkAccess(['admin', 'owner']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
 
   if (!payrollId) return { error: 'Payroll record is required' }
 
