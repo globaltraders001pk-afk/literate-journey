@@ -225,9 +225,9 @@ export async function deleteProduct(id: string) {
   return { success: true, message: 'Product deleted successfully.' }
 }
 
-export async function getStockLevels() {
+export async function getStockLevels(organizationId?: string) {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  let query = supabase
     .from('products')
     .select(`
       id,
@@ -239,7 +239,15 @@ export async function getStockLevels() {
       )
     `)
     .eq('is_active', true)
-    .order('name')
+
+  // Scoped only when the caller passes an org (radars do); the
+  // unscoped behaviour for the existing stock/dashboard callers is
+  // unchanged.
+  if (organizationId) {
+    query = query.eq('organization_id', organizationId)
+  }
+
+  const { data, error } = await query.order('name')
   
   if (error) throw new Error(error.message)
   
@@ -357,15 +365,23 @@ export async function createMovement(formData: FormData) {
   return { success: true }
 }
 
-export async function getBatches() {
+export async function getBatches(organizationId?: string) {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  let query = supabase
     .from('product_batches')
     .select(`
       *,
       products(name, sku)
     `)
-    .order('expiry_date', { ascending: true })
+
+  // Scoped only when the caller passes an org (radars do); the
+  // unscoped behaviour for the existing batches/dashboard callers is
+  // unchanged.
+  if (organizationId) {
+    query = query.eq('organization_id', organizationId)
+  }
+
+  const { data, error } = await query.order('expiry_date', { ascending: true })
   
   if (error) throw new Error(error.message)
   return data
