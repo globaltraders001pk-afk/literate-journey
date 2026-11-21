@@ -34,11 +34,19 @@ export async function createSimplePO(formData: FormData) {
   const vendor_id = formData.get('vendor_id') as string
   const po_number = formData.get('po_number') as string
   const product_id = formData.get('product_id') as string
-  const quantity = parseInt(formData.get('quantity') as string)
+  // Float-safe parse (QA audit L6): parseInt truncated fractional
+  // quantities — 2.5 kg became 2 kg.
+  const quantity = parseFloat(formData.get('quantity') as string)
   const unit_price = parseFloat(formData.get('unit_price') as string)
 
-  if (!vendor_id || !po_number || !product_id || !quantity || !unit_price) {
+  if (!vendor_id || !po_number || !product_id) {
     return { error: 'Required fields missing' }
+  }
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return { error: 'Enter a valid quantity greater than zero' }
+  }
+  if (!Number.isFinite(unit_price) || unit_price <= 0) {
+    return { error: 'Enter a valid unit price greater than zero' }
   }
 
   const supabase = await createClient()

@@ -346,7 +346,10 @@ export async function getMovements(limit: number = 200) {
 export async function createMovement(formData: FormData) {
   const product_id = formData.get('product_id') as string
   const movement_type = formData.get('movement_type') as string
-  const quantity = parseInt(formData.get('quantity') as string)
+  // Float-safe parse (QA audit L6): parseInt truncated fractional
+  // quantities — 2.5 kg became 2 kg. Quantities here are amounts
+  // of goods (kg, litres), not counts, so fractions are real.
+  const quantity = parseFloat(formData.get('quantity') as string)
   const notes = formData.get('notes') as string
   // Optional expiry for the auto-created batch (stock-in only). When the
   // goods arrive without a stated expiry, the batch stores NULL rather
@@ -354,7 +357,10 @@ export async function createMovement(formData: FormData) {
   // product-batches-expiry-nullable-delta.sql delta on the live DB.
   const expiry_date = formData.get('expiry_date') as string
 
-  if (!product_id || !movement_type || !quantity) return { error: 'Required fields missing' }
+  if (!product_id || !movement_type) return { error: 'Required fields missing' }
+  if (!Number.isFinite(quantity) || quantity === 0) {
+    return { error: 'Enter a valid non-zero quantity' }
+  }
 
   const supabase = await createClient()
   const { data: userData } = await supabase.auth.getUser()
@@ -387,22 +393,34 @@ export async function createMovement(formData: FormData) {
   }
 
   // Normalize movement type to Postgres enum: 'STOCK_IN' | 'STOCK_OUT' | 'WASTAGE' | 'RETURN' | 'ADJUSTMENT'
+  // The sign comes from the movement type, and the typed quantity
+  // must already agree with it (QA audit L6): the old code
+  // silently Math.abs()'d whatever was typed, so "-5" on a
+  // stock-in quietly became +5 and "+5" on a sale quietly became
+  // -5. A quantity with the wrong sign is now rejected with a
+  // clear error instead of being silently flipped. ADJUSTMENT is
+  // the one exception — a correction can legitimately go either
+  // way, so its sign is kept as typed.
   let normalizedType: 'STOCK_IN' | 'STOCK_OUT' | 'WASTAGE' | 'RETURN' | 'ADJUSTMENT' = 'ADJUSTMENT'
   const rawType = movement_type.toLowerCase()
   let finalQuantity = quantity
 
   if (['opening_stock', 'purchase', 'stock_in'].includes(rawType)) {
     normalizedType = 'STOCK_IN'
-    finalQuantity = Math.abs(finalQuantity)
+    if (quantity < 0) return { error: 'Quantity must be positive for stock-in. Enter the amount received.' }
+    finalQuantity = quantity
   } else if (['sale', 'transfer_out', 'stock_out'].includes(rawType)) {
     normalizedType = 'STOCK_OUT'
-    finalQuantity = -Math.abs(finalQuantity)
+    if (quantity < 0) return { error: 'Quantity must be positive for stock-out. Enter the amount sold or removed.' }
+    finalQuantity = -quantity
   } else if (['damaged', 'expired', 'wastage'].includes(rawType)) {
     normalizedType = 'WASTAGE'
-    finalQuantity = -Math.abs(finalQuantity)
+    if (quantity < 0) return { error: 'Quantity must be positive for wastage. Enter the amount damaged or expired.' }
+    finalQuantity = -quantity
   } else if (['return'].includes(rawType)) {
     normalizedType = 'RETURN'
-    finalQuantity = Math.abs(finalQuantity)
+    if (quantity < 0) return { error: 'Quantity must be positive for returns. Enter the amount returned.' }
+    finalQuantity = quantity
   } else {
     normalizedType = 'ADJUSTMENT'
   }
@@ -483,11 +501,16 @@ export async function getBatches(
 export async function createBatch(formData: FormData) {
   const product_id = formData.get('product_id') as string
   const batch_number = formData.get('batch_number') as string
-  const quantity = parseInt(formData.get('quantity') as string)
+  // Float-safe parse (QA audit L6): parseInt truncated fractional
+  // quantities — 2.5 kg became 2 kg.
+  const quantity = parseFloat(formData.get('quantity') as string)
   const manufacturing_date = formData.get('manufacturing_date') as string
   const expiry_date = formData.get('expiry_date') as string
 
-  if (!product_id || !batch_number || !quantity || !expiry_date) return { error: 'Required fields missing' }
+  if (!product_id || !batch_number || !expiry_date) return { error: 'Required fields missing' }
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return { error: 'Enter a valid quantity greater than zero' }
+  }
 
   const supabase = await createClient()
   const { data: userData } = await supabase.auth.getUser()
