@@ -177,7 +177,7 @@ export function ReportsClient({ data }: { data: any }) {
             <Card>
               <CardHeader>
                 <CardTitle>Top Selling Products</CardTitle>
-                <CardDescription>Highest volume cheese products sold.</CardDescription>
+                <CardDescription>Highest volume cheese products sold. Revenue is ex-GST (line subtotals, before GST).</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -185,7 +185,7 @@ export function ReportsClient({ data }: { data: any }) {
                     <TableRow>
                       <TableHead>Product</TableHead>
                       <TableHead className="text-center">Units Sold</TableHead>
-                      <TableHead className="text-right">Revenue</TableHead>
+                      <TableHead className="text-right">Revenue (ex-GST)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -379,7 +379,7 @@ export function ReportsClient({ data }: { data: any }) {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-semibold text-foreground">{formatPKR(pnlSummary.totalRevenue)}</div>
-                <p className="text-xs text-muted-foreground mt-1">From all customer sales</p>
+                <p className="text-xs text-muted-foreground mt-1">Ex-GST — GST collected {formatPKR(pnlSummary.gstCollected)} is held for the tax authority, not revenue</p>
               </CardContent>
             </Card>
 
@@ -429,7 +429,17 @@ export function ReportsClient({ data }: { data: any }) {
             <CardContent>
               <div className="space-y-4 max-w-xl text-sm">
                 <div className="flex justify-between py-2 border-b">
-                  <span className="font-medium">Total Sales Revenue</span>
+                  <span className="font-medium">Total Sales (incl. GST)</span>
+                  <span className="font-semibold text-foreground">{formatPKR(pnlSummary.totalSalesInclGst)}</span>
+                </div>
+
+                <div className="flex justify-between py-2 border-b text-muted-foreground">
+                  <span className="pl-4">Less: GST collected (held for the tax authority)</span>
+                  <span className="text-destructive font-mono">-{formatPKR(pnlSummary.gstCollected)}</span>
+                </div>
+
+                <div className="flex justify-between py-2 border-b">
+                  <span className="font-medium">Total Sales Revenue (ex-GST)</span>
                   <span className="font-semibold text-foreground">{formatPKR(pnlSummary.totalRevenue)}</span>
                 </div>
 
@@ -459,6 +469,10 @@ export function ReportsClient({ data }: { data: any }) {
                     {formatPKR(pnlSummary.netProfit)}
                   </span>
                 </div>
+                <p className="text-xs text-muted-foreground pt-1">
+                  GST collected covers sales with a stored GST amount; sales from before GST
+                  storage carry no GST amount and are counted ex-GST as charged.
+                </p>
               </div>
             </CardContent>
           </Card>

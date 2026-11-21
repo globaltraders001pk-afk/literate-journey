@@ -24,12 +24,18 @@ export async function getComprehensiveReports() {
   const [salesRes, saleItemsRes, movementsRes, purchaseOrdersRes, expensesRes, payrollsRes] = await Promise.all([
     supabase
       .from('sales')
-      .select('id, invoice_number, total_amount, payment_method, created_at')
+      .select('id, invoice_number, total_amount, gst_amount, payment_method, created_at')
       .eq('organization_id', orgId)
       .order('created_at', { ascending: false }),
+    // sale_items has no organization_id column of its own, so it is
+    // scoped through its parent sale (inner join: rows whose sale
+    // is in another org never reach the client) — the same pattern
+    // dashboard.ts already uses (QA audit H2: this query had no
+    // org filter at all before).
     supabase
       .from('sale_items')
-      .select('quantity, subtotal, products(name, cost_price)', { count: 'exact' })
+      .select('quantity, subtotal, products(name, cost_price), sales!inner(organization_id)', { count: 'exact' })
+      .eq('sales.organization_id', orgId)
       .order('id', { ascending: false })
       .limit(500),
     supabase
@@ -100,7 +106,10 @@ export async function getComprehensiveReports() {
     amount: val.amount
   }))
 
-  // Top Products
+  // Top Products — revenue basis is EX-GST line subtotals (item 4):
+  // the same basis the dashboard ranking uses, and the UI labels it
+  // so. Sales totals elsewhere are incl-GST grand totals; the two
+  // bases must never be compared without saying which is which.
   const productSalesMap = new Map<string, { name: string; quantity: number; revenue: number; cogs: number }>()
   let totalCogs = 0
 
@@ -181,7 +190,16 @@ export async function getComprehensiveReports() {
     const totalOperatingExpenses = expenses.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0)
     const totalPaidPayroll = payrolls.reduce((sum: number, p: any) => sum + (parseFloat(p.net_salary) || 0), 0)
 
-    const totalRevenue = allSales?.reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0) || 0
+    // GST (QA audit C4 / item 3): total_amount is the GRAND total
+    // (subtotal + GST) for sales made after GST storage, so revenue
+    // for profit purposes is ex-GST. GST collected is its own line:
+    // money held for the tax authority, not business revenue.
+    // Old sales predate the gst_amount column (NULL): they were
+    // charged ex-GST with total_amount = subtotal, so they count
+    // ex-GST as charged and add 0 to GST collected.
+    const totalSalesInclGst = allSales?.reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0) || 0
+    const gstCollected = allSales?.reduce((sum, s) => sum + (parseFloat(s.gst_amount) || 0), 0) || 0
+    const totalRevenue = totalSalesInclGst - gstCollected
     const grossProfit = totalRevenue - totalCogs
     const totalDeductions = totalOperatingExpenses + totalPaidPayroll
     const netProfit = grossProfit - totalDeductions
@@ -191,6 +209,8 @@ export async function getComprehensiveReports() {
 
     pnlSummary = {
       totalRevenue,
+      totalSalesInclGst,
+      gstCollected,
       cogs: totalCogs,
       grossProfit,
       grossMarginPct,
