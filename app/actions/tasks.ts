@@ -2,7 +2,14 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getUserProfile, checkAccess } from '@/lib/auth-utils'
+import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { revalidatePath } from 'next/cache'
+
+// Task statuses used anywhere in the app: the task page select
+// (pending / in_progress / completed), the AI tool description,
+// and the dashboard's quick-complete button, which marks 'DONE'.
+// Anything else is rejected, never stored raw.
+const TASK_STATUSES = ['pending', 'in_progress', 'completed', 'DONE']
 
 export async function getTasks() {
   const profile = await getUserProfile()
@@ -50,7 +57,8 @@ export async function getAssignees() {
 export async function createTask(formData: FormData) {
   try {
     await checkAccess(['admin', 'owner', 'manager'])
-  } catch {
+  } catch (err) {
+    if (isRedirectError(err)) throw err
     return { error: 'Unauthorized to assign tasks' }
   }
 
@@ -89,13 +97,30 @@ export async function updateTaskStatus(taskId: string, status: string) {
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 
+  if (!TASK_STATUSES.includes(status)) return { error: 'Invalid task status' }
+
   const supabase = await createClient()
-  const { error } = await supabase
+  // Org-scoped (QA audit M14/H12): the task must be in the caller's
+  // org, and an employee may only touch tasks assigned to them —
+  // the same rule getTasks already applies when listing.
+  // Zero matched rows means unknown id, wrong org, or (for an
+  // employee) someone else's task — never report success for it.
+  let query = supabase
     .from('tasks')
     .update({ status })
     .eq('id', taskId)
+    .eq('organization_id', profile.organization_id)
+
+  if (profile.role === 'employee') {
+    query = query.eq('assigned_to', profile.id)
+  }
+
+  const { data, error } = await query.select('id')
 
   if (error) return { error: error.message }
+  if (!data || data.length === 0) {
+    return { error: 'Task not found in your organization.' }
+  }
 
   revalidatePath('/tasks')
   return { success: true }
@@ -104,17 +129,26 @@ export async function updateTaskStatus(taskId: string, status: string) {
 export async function deleteTask(taskId: string) {
   try {
     await checkAccess(['admin', 'owner', 'manager'])
-  } catch {
+  } catch (err) {
+    if (isRedirectError(err)) throw err
     return { error: 'Unauthorized to delete tasks' }
   }
 
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+
   const supabase = await createClient()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('tasks')
     .delete()
     .eq('id', taskId)
+    .eq('organization_id', profile.organization_id)
+    .select('id')
 
   if (error) return { error: error.message }
+  if (!data || data.length === 0) {
+    return { error: 'Task not found in your organization.' }
+  }
 
   revalidatePath('/tasks')
   return { success: true }

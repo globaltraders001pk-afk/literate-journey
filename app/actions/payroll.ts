@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-import { checkAccess } from '@/lib/auth-utils'
+import { checkAccess, getUserProfile } from '@/lib/auth-utils'
 
 function validatePeriod(month: number, year: number): string | null {
   if (!Number.isInteger(month) || month < 1 || month > 12) return 'Month must be between 1 and 12'
@@ -88,10 +88,13 @@ export async function generatePayroll(month: number, year: number) {
 }
 
 export async function getPayroll(month: number, year: number) {
+  const profile = await getUserProfile()
+  if (!profile) return []
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('payroll')
     .select('*, employees(first_name, last_name, role)')
+    .eq('organization_id', profile.organization_id)
     .eq('month', month)
     .eq('year', year)
   

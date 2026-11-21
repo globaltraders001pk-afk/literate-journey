@@ -1,14 +1,19 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { checkAccess, getUserProfile } from '@/lib/auth-utils'
+import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { revalidatePath } from 'next/cache'
 import { INVOICE_SCHEMA_MISSING } from '@/lib/invoice-schema'
 
 export async function getCustomers() {
+  const profile = await getUserProfile()
+  if (!profile) return []
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('customers')
     .select('*')
+    .eq('organization_id', profile.organization_id)
     .order('name', { ascending: true })
   
   if (error) throw new Error(error.message)
@@ -316,32 +321,41 @@ export async function getInvoiceByNumber(invoiceNumber: string) {
  */
 export async function updateProcurementRef(invoiceNumber: string, value: string) {
   try {
+    // Owner/admin/manager only (QA audit M13): an employee must not
+    // rewrite the procurement reference printed on an invoice.
+    let profile: { organization_id: string }
+    try {
+      profile = await checkAccess(['owner', 'admin', 'manager'])
+    } catch (err) {
+      if (isRedirectError(err)) throw err
+      return { error: 'Unauthorized' }
+    }
+
     const supabase = await createClient()
-    const { data: userData } = await supabase.auth.getUser()
-    if (!userData.user) return { error: 'Unauthorized' }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('organization_id')
-      .eq('id', userData.user.id)
-      .single()
-
-    if (!profile) return { error: 'Profile not found' }
 
     const procurement_ref = (value || '').trim().slice(0, 50) || null
 
-    const { error } = await supabase
+    // Zero matched rows means no such invoice in this org — report
+    // it instead of the old silent `{ success: true }` on a no-op.
+    const { data, error } = await supabase
       .from('sales')
       .update({ procurement_ref })
       .eq('organization_id', profile.organization_id)
       .eq('invoice_number', invoiceNumber)
+      .select('id')
 
     if (error) return { error: error.message }
+    if (!data || data.length === 0) {
+      return { error: 'Invoice not found in your organization.' }
+    }
 
     revalidatePath(`/sales/invoices/${encodeURIComponent(invoiceNumber)}`)
     revalidatePath('/sales/pos')
     return { success: true }
   } catch (err) {
+    // A redirect (e.g. from checkAccess) must never become a
+    // silent `{ error }` — rethrow it so Next.js can redirect.
+    if (isRedirectError(err)) throw err
     console.error('Error updating procurement ref:', err)
     return { error: 'Failed to update procurement reference' }
   }

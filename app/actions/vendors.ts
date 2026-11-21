@@ -1,14 +1,18 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { checkAccess } from '@/lib/auth-utils'
+import { checkAccess, getUserProfile } from '@/lib/auth-utils'
+import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { revalidatePath } from 'next/cache'
 
 export async function getVendors() {
+  const profile = await getUserProfile()
+  if (!profile) return []
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('vendors')
     .select('*')
+    .eq('organization_id', profile.organization_id)
     .order('name', { ascending: true })
   
   if (error) throw new Error(error.message)
@@ -18,7 +22,8 @@ export async function getVendors() {
 export async function createVendor(formData: FormData) {
   try {
     await checkAccess(['admin', 'owner', 'manager'])
-  } catch {
+  } catch (err) {
+    if (isRedirectError(err)) throw err
     return { error: 'Unauthorized to add vendors' }
   }
 
@@ -66,7 +71,8 @@ export async function createVendor(formData: FormData) {
 export async function updateVendor(id: string, formData: FormData) {
   try {
     await checkAccess(['admin', 'owner', 'manager'])
-  } catch {
+  } catch (err) {
+    if (isRedirectError(err)) throw err
     return { error: 'Unauthorized to edit vendors' }
   }
 
@@ -80,9 +86,14 @@ export async function updateVendor(id: string, formData: FormData) {
 
   if (!name) return { error: 'Name is required' }
 
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+
   const supabase = await createClient()
 
-  const { error } = await supabase
+  // Org-scoped (QA audit H12): zero matched rows means unknown id
+  // or another org's vendor.
+  const { data, error } = await supabase
     .from('vendors')
     .update({
       name,
@@ -94,14 +105,19 @@ export async function updateVendor(id: string, formData: FormData) {
       rates: rates || null
     })
     .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .select('id')
 
   if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'Vendor not found in your organization.' }
   
   revalidatePath('/purchases/vendors')
   return { success: true }
 }
 
 export async function getVendorOrders(vendorId: string) {
+  const profile = await getUserProfile()
+  if (!profile) return []
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('purchase_orders')
@@ -112,6 +128,7 @@ export async function getVendorOrders(vendorId: string) {
         products (name, sku)
       )
     `)
+    .eq('organization_id', profile.organization_id)
     .eq('vendor_id', vendorId)
     .order('created_at', { ascending: false })
 

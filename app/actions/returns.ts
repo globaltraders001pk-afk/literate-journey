@@ -1,9 +1,12 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUserProfile } from '@/lib/auth-utils'
 import { revalidatePath } from 'next/cache'
 
 export async function getReturns() {
+  const profile = await getUserProfile()
+  if (!profile) return []
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('returns')
@@ -16,6 +19,7 @@ export async function getReturns() {
         products(name, sku)
       )
     `)
+    .eq('organization_id', profile.organization_id)
     .order('created_at', { ascending: false })
   
   if (error) throw new Error(error.message)

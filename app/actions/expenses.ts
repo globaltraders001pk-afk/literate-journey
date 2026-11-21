@@ -2,13 +2,17 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { checkAccess } from '@/lib/auth-utils'
+import { checkAccess, getUserProfile } from '@/lib/auth-utils'
+import { isRedirectError } from 'next/dist/client/components/redirect-error'
 
 export async function getExpenseCategories() {
+  const profile = await getUserProfile()
+  if (!profile) return []
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('expense_categories')
     .select('*')
+    .eq('organization_id', profile.organization_id)
     .order('name', { ascending: true })
   
   if (error) throw new Error(error.message)
@@ -16,7 +20,7 @@ export async function getExpenseCategories() {
 }
 
 export async function createExpenseCategory(formData: FormData) {
-  try { await checkAccess(['admin', 'owner']) } catch { return { error: 'Unauthorized' } }
+  try { await checkAccess(['admin', 'owner']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
 
   const name = formData.get('name') as string
   const description = formData.get('description') as string
@@ -50,15 +54,20 @@ export async function createExpenseCategory(formData: FormData) {
 }
 
 export async function deleteExpenseCategory(id: string) {
-  try { await checkAccess(['admin', 'owner']) } catch { return { error: 'Unauthorized' } }
+  try { await checkAccess(['admin', 'owner']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
+
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
 
   const supabase = await createClient()
 
   // Refuse while any expense still uses the category, so the ledger
-  // never ends up pointing at a deleted classification.
+  // never ends up pointing at a deleted classification. Scoped to
+  // the caller's org, like the delete itself (H12 pattern).
   const { count, error: countError } = await supabase
     .from('expenses')
     .select('*', { count: 'exact', head: true })
+    .eq('organization_id', profile.organization_id)
     .eq('category_id', id)
 
   if (countError) return { error: countError.message }
@@ -66,18 +75,23 @@ export async function deleteExpenseCategory(id: string) {
     return { error: `Cannot delete this category — it is still used by ${count} expense${count === 1 ? '' : 's'}. Move those expenses to another category first.` }
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('expense_categories')
     .delete()
     .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .select('id')
 
   if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'Category not found in your organization.' }
 
   revalidatePath('/expenses/categories')
   return { success: true }
 }
 
 export async function getExpenses() {
+  const profile = await getUserProfile()
+  if (!profile) return []
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('expenses')
@@ -86,6 +100,7 @@ export async function getExpenses() {
       expense_categories(name),
       profiles(full_name)
     `)
+    .eq('organization_id', profile.organization_id)
     .order('expense_date', { ascending: false })
     .order('created_at', { ascending: false })
   
@@ -94,7 +109,7 @@ export async function getExpenses() {
 }
 
 export async function createExpense(formData: FormData) {
-  try { await checkAccess(['admin', 'owner']) } catch { return { error: 'Unauthorized' } }
+  try { await checkAccess(['admin', 'owner']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
 
   const category_id = formData.get('category_id') as string
   const amount = parseFloat(formData.get('amount') as string)
