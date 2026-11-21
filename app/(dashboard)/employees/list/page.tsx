@@ -1,5 +1,6 @@
 import { getEmployees } from '@/app/actions/employees'
 import { checkAccess } from '@/lib/auth-utils'
+import { formatPKR } from '@/lib/format-currency'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -64,7 +65,7 @@ export default async function EmployeesPage() {
                     </div>
                   </TableCell>
                   <TableCell className="capitalize">{emp.employment_type.replace('_', ' ')}</TableCell>
-                  <TableCell>${emp.base_salary}</TableCell>
+                  <TableCell>{formatPKR(emp.base_salary)}</TableCell>
                   <TableCell>{emp.phone || '-'}</TableCell>
                   <TableCell>
                     {emp.is_active ? <Badge className="bg-emerald-500">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
