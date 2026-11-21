@@ -51,18 +51,36 @@ export async function getComprehensiveReports() {
       .eq('organization_id', orgId),
     isOwnerOrAdmin
       ? supabase.from('expenses').select('amount').eq('organization_id', orgId)
-      : Promise.resolve({ data: [] as any[] }),
+      : Promise.resolve({ data: [] as Array<{ amount: number | string }> }),
     isOwnerOrAdmin
       ? supabase.from('payroll').select('net_salary').eq('organization_id', orgId).eq('status', 'paid')
-      : Promise.resolve({ data: [] as any[] })
+      : Promise.resolve({ data: [] as Array<{ net_salary: number | string }> })
   ])
 
-  const allSales = salesRes.data || []
-  const saleItems = saleItemsRes.data || []
-  const movements = movementsRes.data || []
-  const purchaseOrders = purchaseOrdersRes.data || []
-  const expenses = expensesRes.data || []
-  const payrolls = payrollsRes.data || []
+  // Row shapes pinned here (casts are compile-time only — the
+  // data is whatever Supabase returned). Money columns are
+  // number | string because PostgREST may return numerics as
+  // either; every use below goes through Number(), never
+  // parseFloat on a possibly-numeric value.
+  const allSales = (salesRes.data || []) as Array<{ created_at: string; total_amount: number | string; gst_amount?: number | string | null }>
+  const saleItems = (saleItemsRes.data || []) as Array<{
+    quantity: number | string
+    subtotal: number | string
+    products?: { name?: string | null; cost_price?: number | string | null } | Array<{ name?: string | null; cost_price?: number | string | null }> | null
+  }>
+  const movements = (movementsRes.data || []) as Array<{
+    movement_type: string
+    quantity: number | string
+    products?: { name?: string | null } | Array<{ name?: string | null }> | null
+  }>
+  const purchaseOrders = (purchaseOrdersRes.data || []) as Array<{
+    total_amount: number | string
+    status: string
+    created_at: string
+    vendors?: { name?: string | null } | Array<{ name?: string | null }> | null
+  }>
+  const expenses = (expensesRes.data || []) as Array<{ amount: number | string }>
+  const payrolls = (payrollsRes.data || []) as Array<{ net_salary: number | string }>
 
   let todaySalesTotal = 0
   let todaySalesCount = 0
@@ -79,9 +97,9 @@ export async function getComprehensiveReports() {
     dailyTrendMap.set(key, { count: 0, amount: 0 })
   }
 
-  allSales.forEach((sale: any) => {
+  allSales.forEach((sale) => {
     const saleDateStr = toPKTDateString(sale.created_at)
-    const amount = parseFloat(sale.total_amount) || 0
+    const amount = Number(sale.total_amount) || 0
 
     if (saleDateStr === todayStr) {
       todaySalesTotal += amount
@@ -115,11 +133,11 @@ export async function getComprehensiveReports() {
   const productSalesMap = new Map<string, { name: string; quantity: number; revenue: number; cogs: number }>()
   let totalCogs = 0
 
-  saleItems.forEach((item: any) => {
+  saleItems.forEach((item) => {
     const name = Array.isArray(item.products) ? item.products[0]?.name : item.products?.name
-    const costPrice = Array.isArray(item.products) ? parseFloat(item.products[0]?.cost_price) || 0 : parseFloat(item.products?.cost_price) || 0
-    const qty = item.quantity || 0
-    const revenue = parseFloat(item.subtotal) || 0
+    const costPrice = Array.isArray(item.products) ? Number(item.products[0]?.cost_price) || 0 : Number(item.products?.cost_price) || 0
+    const qty = Number(item.quantity) || 0
+    const revenue = Number(item.subtotal) || 0
     const cogs = costPrice * qty
     totalCogs += cogs
 
@@ -146,8 +164,8 @@ export async function getComprehensiveReports() {
 
   const wastageByProductMap = new Map<string, number>()
 
-  movements.forEach((m: any) => {
-    const qty = Math.abs(m.quantity) || 0
+  movements.forEach((m) => {
+    const qty = Math.abs(Number(m.quantity)) || 0
     const prodName = Array.isArray(m.products) ? m.products[0]?.name : m.products?.name
 
     if (m.movement_type === 'STOCK_IN') stockInTotal += qty
@@ -169,9 +187,9 @@ export async function getComprehensiveReports() {
   // 3. Vendor Purchase Report
   const vendorReportMap = new Map<string, { vendorName: string; orderCount: number; totalSpent: number; lastOrder: string }>()
 
-  purchaseOrders.forEach((po: any) => {
-    const vendorName = Array.isArray(po.vendors) ? po.vendors[0]?.name : po.vendors?.name || 'Unknown Supplier'
-    const amount = parseFloat(po.total_amount) || 0
+  purchaseOrders.forEach((po) => {
+    const vendorName = (Array.isArray(po.vendors) ? po.vendors[0]?.name : po.vendors?.name) || 'Unknown Supplier'
+    const amount = Number(po.total_amount) || 0
     const dateStr = po.created_at.split('T')[0]
 
     if (!vendorReportMap.has(vendorName)) {
@@ -189,8 +207,8 @@ export async function getComprehensiveReports() {
   // 4. Profit & Loss Summary (Owner / Admin Level Only)
   let pnlSummary = null
   if (isOwnerOrAdmin) {
-    const totalOperatingExpenses = expenses.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0)
-    const totalPaidPayroll = payrolls.reduce((sum: number, p: any) => sum + (parseFloat(p.net_salary) || 0), 0)
+    const totalOperatingExpenses = expenses.reduce((sum: number, e) => sum + (Number(e.amount) || 0), 0)
+    const totalPaidPayroll = payrolls.reduce((sum: number, p) => sum + (Number(p.net_salary) || 0), 0)
 
     // GST (QA audit C4 / item 3): total_amount is the GRAND total
     // (subtotal + GST) for sales made after GST storage, so revenue
@@ -199,8 +217,8 @@ export async function getComprehensiveReports() {
     // Old sales predate the gst_amount column (NULL): they were
     // charged ex-GST with total_amount = subtotal, so they count
     // ex-GST as charged and add 0 to GST collected.
-    const totalSalesInclGst = allSales?.reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0) || 0
-    const gstCollected = allSales?.reduce((sum, s) => sum + (parseFloat(s.gst_amount) || 0), 0) || 0
+    const totalSalesInclGst = allSales?.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0) || 0
+    const gstCollected = allSales?.reduce((sum, s) => sum + (Number(s.gst_amount) || 0), 0) || 0
     const totalRevenue = totalSalesInclGst - gstCollected
     const grossProfit = totalRevenue - totalCogs
     const totalDeductions = totalOperatingExpenses + totalPaidPayroll
@@ -228,7 +246,7 @@ export async function getComprehensiveReports() {
       today: { total: todaySalesTotal, count: todaySalesCount },
       week: { total: weekSalesTotal, count: weekSalesCount },
       month: { total: monthSalesTotal, count: monthSalesCount },
-      allTimeTotal: allSales?.reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0) || 0,
+      allTimeTotal: allSales?.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0) || 0,
       dailyTrend,
       topSellingProducts,
       // The top-products / COGS math only saw the newest 500 sale

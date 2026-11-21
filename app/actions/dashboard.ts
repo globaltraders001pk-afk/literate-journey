@@ -155,8 +155,8 @@ export async function getCheeseCommandCenterData() {
     })
   }
 
-  const weekSales = weekSalesRes.data || []
-  weekSales.forEach((s: any) => {
+  const weekSales = (weekSalesRes.data || []) as Array<{ created_at: string; total_amount: number | string }>
+  weekSales.forEach((s) => {
     const key = toPKTDateString(s.created_at)
     if (trendMap.has(key)) {
       const item = trendMap.get(key)!
@@ -168,9 +168,19 @@ export async function getCheeseCommandCenterData() {
   const dailyTrend = Array.from(trendMap.values())
 
   // 3. Recent Sales Transactions
-  const recentSales = (recentSalesRes.data || []).map((s: any) => {
+  // Embeds are single objects at runtime (many-to-one); the
+  // cast pins that shape — see reports.ts for the same pattern.
+  const recentSales = ((recentSalesRes.data || []) as Array<{
+    id: string
+    invoice_number: string
+    total_amount: number | string
+    payment_method: string | null
+    created_at: string
+    customers?: { name?: string | null } | Array<{ name?: string | null }> | null
+    sale_items?: Array<{ quantity?: number | null; products?: { name?: string | null } | null }> | null
+  }>).map((s) => {
     const customerName = Array.isArray(s.customers) ? s.customers[0]?.name : s.customers?.name
-    const itemsCount = s.sale_items?.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0) || 0
+    const itemsCount = s.sale_items?.reduce((acc: number, item) => acc + (item.quantity || 0), 0) || 0
     const primaryItem = s.sale_items?.[0]?.products?.name || 'Selected Item'
     return {
       id: s.id,
@@ -187,9 +197,13 @@ export async function getCheeseCommandCenterData() {
   // 4. Top Selling Products — revenue is EX-GST line subtotals
   // (item 4): the same basis the Reports ranking uses, labelled in
   // the UI. Sales totals elsewhere are incl-GST grand totals.
-  const saleItems = saleItemsRes.data || []
+  const saleItems = (saleItemsRes.data || []) as Array<{
+    quantity: number | string
+    subtotal: number | string
+    products?: { id: string; name: string; sku: string | null } | Array<{ id: string; name: string; sku: string | null }> | null
+  }>
   const productMap = new Map<string, { id: string; name: string; sku: string; quantity: number; revenue: number }>()
-  saleItems.forEach((item: any) => {
+  saleItems.forEach((item) => {
     const prod = Array.isArray(item.products) ? item.products[0] : item.products
     if (!prod) return
     const id = prod.id
@@ -197,7 +211,7 @@ export async function getCheeseCommandCenterData() {
       productMap.set(id, { id, name: prod.name, sku: prod.sku || '', quantity: 0, revenue: 0 })
     }
     const p = productMap.get(id)!
-    p.quantity += item.quantity || 0
+    p.quantity += Number(item.quantity) || 0
     p.revenue += Number(item.subtotal) || 0
   })
 
@@ -235,17 +249,24 @@ export async function getCheeseCommandCenterData() {
   // daysUntil() from lib/dates.ts, urgent = fewer than 30 days
   // left (expired included, day 30 excluded) — the same count the
   // radar strip shows as "urgent · 30 days".
-  const batchList = allBatches.rows || []
+  const batchList = (allBatches.rows || []) as Array<{
+    id: string
+    batch_number: string
+    expiry_date: string | null
+    quantity_remaining: number
+    products?: { name?: string | null } | Array<{ name?: string | null }> | null
+  }>
   const expiringBatchesList = batchList
-    .filter((b: any) => {
+    .filter((b) => {
       if (!b.expiry_date || b.quantity_remaining <= 0) return false
       return isUrgentExpiry(daysUntil(b.expiry_date))
     })
 
   const expiringBatches = expiringBatchesList
     .slice(0, 5)
-    .map((b: any) => {
-      const diffDays = daysUntil(b.expiry_date)
+    .map((b) => {
+      // Non-null by the filter above (expiry_date checked there).
+      const diffDays = daysUntil(b.expiry_date!)
       const prodName = Array.isArray(b.products) ? b.products[0]?.name : b.products?.name
       return {
         id: b.id,
@@ -258,9 +279,15 @@ export async function getCheeseCommandCenterData() {
     })
 
   // 7. Active Tasks
-  const taskList = allTasks.rows || []
+  const taskList = (allTasks.rows || []) as Array<{
+    id: string
+    title: string
+    status: string
+    priority?: string | null
+    due_date?: string | null
+  }>
   const activeTasks = taskList
-    .filter((t: any) => t.status !== 'DONE')
+    .filter((t) => t.status !== 'DONE')
     .slice(0, 5)
 
   // Radar summary from the stock + batches already fetched above
