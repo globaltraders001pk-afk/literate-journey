@@ -163,8 +163,18 @@ $$;
 --    No money comes from the client: every unit price is
 --    re-read from products.selling_price, stock is checked,
 --    and the customer total is bumped atomically.
---    Returns { invoice_number, total_amount } as JSON.
---    Any raise rolls the whole sale back.
+--    GST-EXCLUSIVE pricing (client decision 2026-11-22):
+--    catalog prices are ex-GST; GST is charged on top at the
+--    org's rate (organizations.gst_rate, default 18):
+--      subtotal    = SUM(qty x selling_price)
+--      gst_amount  = round2(subtotal x gst_rate)
+--      grand_total = subtotal + gst_amount
+--      total_amount = grand_total (the amount actually charged)
+--    Both gst_amount and grand_total are stored on the sales
+--    row (20261122_sale_gst_columns.sql). Old sales keep them
+--    NULL — no backfill.
+--    Returns { invoice_number, subtotal, gst_amount,
+--    total_amount } as JSON. Any raise rolls the whole sale back.
 -- ============================================================
 create or replace function public.process_checkout(
   p_customer_id uuid,
@@ -184,12 +194,15 @@ declare
   v_payment text;
   v_invoice_number text;
   v_sale_id uuid;
+  v_subtotal numeric := 0;
+  v_gst_rate numeric;
+  v_gst_amount numeric;
   v_total numeric := 0;
   v_item jsonb;
   v_product_id uuid;
   v_qty numeric;
   v_price numeric;
-  v_subtotal numeric;
+  v_line_subtotal numeric;
   v_stock numeric;
   v_product_name text;
   v_seen uuid[] := '{}';
@@ -216,6 +229,15 @@ begin
     if not found then
       raise exception 'Customer not found in your organization';
     end if;
+  end if;
+
+  -- GST rate for this org (default 18). The org row is locked
+  -- here for the whole transaction, which also serializes the
+  -- serial mint below (next_invoice_number locks the same row).
+  select coalesce(gst_rate, 18) into v_gst_rate
+    from public.organizations where id = v_org_id for update;
+  if not found then
+    raise exception 'Organization not found';
   end if;
 
   -- Payment method normalized to the app's enum, same mapping
@@ -281,19 +303,28 @@ begin
         v_product_name, v_stock, v_qty;
     end if;
 
-    v_total := v_total + round(v_qty * v_price, 2);
+    v_subtotal := v_subtotal + round(v_qty * v_price, 2);
   end loop;
-  v_total := round(v_total, 2);
+  v_subtotal := round(v_subtotal, 2);
+
+  -- GST-EXCLUSIVE pricing (client decision 2026-11-22): the
+  -- catalog price is ex-GST, so GST is charged on top. The
+  -- customer pays subtotal + GST, and total_amount — the amount
+  -- actually charged, and the figure every downstream use
+  -- (reports, cashflow, total_spent, refund caps) reads — is
+  -- the grand total.
+  v_gst_amount := round(v_subtotal * v_gst_rate / 100, 2);
+  v_total := round(v_subtotal + v_gst_amount, 2);
 
   -- Serial minted last, under the org-row lock, in this txn.
   v_invoice_number := public.next_invoice_number(v_org_id);
 
   insert into public.sales
     (organization_id, branch_id, customer_id, invoice_number,
-     subtotal, total_amount, payment_method, created_by)
+     subtotal, gst_amount, total_amount, grand_total, payment_method, created_by)
     values
     (v_org_id, v_branch_id, p_customer_id, v_invoice_number,
-     v_total, v_total, v_payment, v_user_id)
+     v_subtotal, v_gst_amount, v_total, v_total, v_payment, v_user_id)
     returning id into v_sale_id;
 
   -- Line items + stock movements, priced from the catalog.
@@ -303,11 +334,11 @@ begin
     v_qty := (v_item ->> 'quantity')::numeric;
     select selling_price into v_price
       from public.products where id = v_product_id;
-    v_subtotal := round(v_qty * v_price, 2);
+    v_line_subtotal := round(v_qty * v_price, 2);
 
     insert into public.sale_items
       (sale_id, product_id, quantity, unit_price, subtotal)
-      values (v_sale_id, v_product_id, v_qty, v_price, v_subtotal);
+      values (v_sale_id, v_product_id, v_qty, v_price, v_line_subtotal);
 
     insert into public.inventory_movements
       (organization_id, branch_id, product_id, movement_type,
@@ -319,6 +350,8 @@ begin
   end loop;
 
   -- Atomic customer-total bump (no read-add-write-back race).
+  -- total_spent grows by the GRAND total — what the customer
+  -- actually paid, GST included.
   if p_customer_id is not null then
     update public.customers
       set total_spent = coalesce(total_spent, 0) + v_total
@@ -327,6 +360,8 @@ begin
 
   return jsonb_build_object(
     'invoice_number', v_invoice_number,
+    'subtotal', v_subtotal,
+    'gst_amount', v_gst_amount,
     'total_amount', v_total
   );
 end;
@@ -386,7 +421,10 @@ begin
     raise exception 'Return has too many lines (max 100)';
   end if;
 
-  -- The original sale must exist in the caller's org.
+  -- The original sale must exist in the caller's org. Its
+  -- total_amount is the GRAND total (subtotal + GST) — the
+  -- amount actually charged — so the refund cap below is
+  -- against what the customer paid, GST included.
   select total_amount, customer_id
     into v_sale_total, v_sale_customer_id
     from public.sales

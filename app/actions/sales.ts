@@ -88,8 +88,13 @@ export async function createCustomer(formData: FormData) {
 //     never used as money;
 //   * verifies every product and the customer belong to the
 //     caller's org, and that stock is sufficient;
+//   * charges GST-exclusive prices + GST at the org's rate
+//     (subtotal ex-GST, gst_amount, grand_total) and stores
+//     them on the sale; total_amount IS the grand total — the
+//     amount actually charged;
 //   * inserts the sale header + sale_items + inventory_movements
-//     and bumps customers.total_spent atomically;
+//     and bumps customers.total_spent (by the grand total)
+//     atomically;
 //   * mints the sequential invoice number under an org-row lock.
 // Any leg failing raises, the transaction rolls back, and this
 // action returns { error } — the POS shows the error instead of
@@ -148,8 +153,8 @@ export async function processCheckout(
   revalidatePath('/inventory/movements')
   revalidatePath('/dashboard')
 
-  // total_amount is the server-computed total (catalog prices),
-  // which the POS receipt must show — never the cart's total.
+  // total_amount is the server-computed GRAND total (ex-GST
+  // subtotal + GST at the org rate) — never the cart's total.
   return {
     success: true,
     invoice_number: result.invoice_number,
