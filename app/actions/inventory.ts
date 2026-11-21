@@ -22,6 +22,8 @@ export async function getCategories() {
 }
 
 export async function createCategory(formData: FormData) {
+  try { await checkAccess(['admin', 'owner', 'manager']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Only owners, admins and managers can add categories.' } }
+
   const name = formData.get('name') as string
   const description = formData.get('description') as string
   
@@ -54,6 +56,8 @@ export async function createCategory(formData: FormData) {
 }
 
 export async function updateCategory(id: string, formData: FormData) {
+  try { await checkAccess(['admin', 'owner', 'manager']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Only owners, admins and managers can edit categories.' } }
+
   const name = formData.get('name') as string
   const description = formData.get('description') as string
   
@@ -81,6 +85,8 @@ export async function updateCategory(id: string, formData: FormData) {
 }
 
 export async function deleteCategory(id: string) {
+  try { await checkAccess(['admin', 'owner', 'manager']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Only owners, admins and managers can delete categories.' } }
+
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 
@@ -344,6 +350,11 @@ export async function getMovements(limit: number = 200) {
 }
 
 export async function createMovement(formData: FormData) {
+  // Role gate (S6 sweep): any signed-in staff records movements,
+  // but the call must be authenticated + role-checked, not just
+  // "has a user row" — the old code only checked getUser().
+  try { await checkAccess(['owner', 'admin', 'manager', 'employee']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
+
   const product_id = formData.get('product_id') as string
   const movement_type = formData.get('movement_type') as string
   // Float-safe parse (QA audit L6): parseInt truncated fractional
@@ -499,6 +510,10 @@ export async function getBatches(
 }
 
 export async function createBatch(formData: FormData) {
+  // Role gate (S6 sweep): same rule as createMovement — any
+  // signed-in staff may record a received batch.
+  try { await checkAccess(['owner', 'admin', 'manager', 'employee']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
+
   const product_id = formData.get('product_id') as string
   const batch_number = formData.get('batch_number') as string
   // Float-safe parse (QA audit L6): parseInt truncated fractional

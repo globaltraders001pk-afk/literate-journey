@@ -97,6 +97,11 @@ export async function createTask(formData: FormData) {
 }
 
 export async function updateTaskStatus(taskId: string, status: string) {
+  // Role gate (S6 sweep): any signed-in role may move a task's
+  // status — the employee-only-their-own-tasks rule is enforced
+  // in the query below, and stays the real guard.
+  try { await checkAccess(['owner', 'admin', 'manager', 'employee']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
+
   const profile = await getUserProfile()
   if (!profile) return { error: 'Unauthorized' }
 

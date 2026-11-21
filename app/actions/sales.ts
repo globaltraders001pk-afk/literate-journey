@@ -33,6 +33,10 @@ export async function getCustomers(options?: PageOptions) {
 }
 
 export async function createCustomer(formData: FormData) {
+  // Role gate (S6 sweep): any signed-in staff may register a
+  // customer at the till; the old code only checked getUser().
+  try { await checkAccess(['owner', 'admin', 'manager', 'employee']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
+
   const parsed = customerSchema.safeParse({
     name: formData.get('name'),
     phone: emptyToUndefined(formData.get('phone')),

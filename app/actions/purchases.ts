@@ -31,6 +31,10 @@ export async function getPurchaseOrders(options?: PageOptions) {
 }
 
 export async function createSimplePO(formData: FormData) {
+  // Role gate (S6 sweep): creating a purchase order is a
+  // money commitment — staff without a manager role may not.
+  try { await checkAccess(['admin', 'owner', 'manager']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Only owners, admins and managers can create purchase orders.' } }
+
   const vendor_id = formData.get('vendor_id') as string
   const po_number = formData.get('po_number') as string
   const product_id = formData.get('product_id') as string
