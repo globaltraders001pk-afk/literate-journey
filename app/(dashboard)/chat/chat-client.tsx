@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { 
   Sparkles, 
@@ -32,7 +32,10 @@ interface ActionReceipt {
   action: string
   details: string
   success: boolean
-  data?: any
+  // Set when the executor returned a preview instead of writing:
+  // nothing has happened yet — the owner must confirm or cancel.
+  requiresConfirmation?: boolean
+  data?: { invoice_number?: string; [key: string]: unknown }
 }
 
 interface Message {
@@ -88,8 +91,7 @@ const TOPIC_PRESETS: Record<string, string> = {
   tasks: 'List all pending and active tasks'
 }
 
-export function ChatClient({ profile }: { profile: any }) {
-  const router = useRouter()
+export function ChatClient() {
   const searchParams = useSearchParams()
   const topic = searchParams.get('topic')
   const sessionId = searchParams.get('session')
@@ -108,7 +110,7 @@ export function ChatClient({ profile }: { profile: any }) {
   const [selectedInvoice, setSelectedInvoice] = React.useState<{ number: string | null; data: InvoiceModalData | null }>({ number: null, data: null })
   const [invoiceModalOpen, setInvoiceModalOpen] = React.useState(false)
 
-  const handleOpenInvoice = (invNum: string, invoiceData?: any) => {
+  const handleOpenInvoice = (invNum: string, invoiceData?: InvoiceModalData | null) => {
     setSelectedInvoice({ number: invNum, data: invoiceData || null })
     setInvoiceModalOpen(true)
   }
@@ -131,14 +133,6 @@ export function ChatClient({ profile }: { profile: any }) {
     }
   }, [sessionId, topic])
 
-  // When clicking a tree sub-item topic in the sidebar, trigger topic prompt
-  React.useEffect(() => {
-    if (topic && TOPIC_PRESETS[topic]) {
-      const presetPrompt = TOPIC_PRESETS[topic]
-      handleSend(presetPrompt)
-    }
-  }, [topic])
-
   // Auto-resize textarea
   React.useEffect(() => {
     if (textareaRef.current) {
@@ -157,18 +151,12 @@ export function ChatClient({ profile }: { profile: any }) {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const handleNewChat = () => {
-    setMessages([])
-    setActiveSessionId(null)
-    setInput('')
-    setShowAttachMenu(false)
-    router.push('/chat')
-    if (textareaRef.current) {
-      textareaRef.current.focus()
-    }
-  }
+  // Confirmations the owner has already answered (Confirm/Cancel),
+  // keyed by message id + action index — a preview must be
+  // answerable exactly once.
+  const [answeredConfirm, setAnsweredConfirm] = React.useState<Record<string, boolean>>({})
 
-  async function handleSend(textToSend?: string) {
+  const handleSend = React.useCallback(async (textToSend?: string) => {
     const query = (textToSend || input).trim()
     if (!query || loading) return
 
@@ -319,7 +307,7 @@ export function ChatClient({ profile }: { profile: any }) {
                   )
                 )
               }
-            } catch (e) {}
+            } catch {}
           }
         }
       } else {
@@ -357,11 +345,11 @@ export function ChatClient({ profile }: { profile: any }) {
           messages: fullHistory
         })
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `⚠️ **Agent Error**: ${err?.message || 'Failed to connect to database service.'}`,
+        content: `⚠️ **Agent Error**: ${err instanceof Error ? err.message : 'Failed to connect to database service.'}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
       setMessages(prev => {
@@ -381,7 +369,18 @@ export function ChatClient({ profile }: { profile: any }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [input, loading, messages, activeSessionId])
+
+  // When clicking a tree sub-item topic in the sidebar, trigger topic prompt
+  // (once per topic — the ref stops handleSend's identity changes
+  // from re-firing the preset on every message).
+  const topicSentRef = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (topic && TOPIC_PRESETS[topic] && topicSentRef.current !== topic) {
+      topicSentRef.current = topic
+      handleSend(TOPIC_PRESETS[topic])
+    }
+  }, [topic, handleSend])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -587,13 +586,47 @@ export function ChatClient({ profile }: { profile: any }) {
                                       {act.action}
                                     </span>
                                     <Badge
-                                      variant={act.success ? 'default' : 'destructive'}
+                                      variant={act.requiresConfirmation ? 'outline' : act.success ? 'default' : 'destructive'}
                                       className="text-[9px] h-4 py-0"
                                     >
-                                      {act.success ? 'Success' : 'Failed'}
+                                      {act.requiresConfirmation ? 'Needs confirmation' : act.success ? 'Success' : 'Failed'}
                                     </Badge>
                                   </div>
                                   <p className="text-[11px] text-muted-foreground leading-normal">{act.details}</p>
+
+                                  {/* Confirmation step (QA audit M12): a financial
+                                      write only happens after the owner confirms
+                                      this preview — Confirm sends an explicit
+                                      confirmation, Cancel drops it. */}
+                                  {act.requiresConfirmation && !answeredConfirm[`${msg.id}:${i}`] && (
+                                    <div className="flex items-center gap-2 pt-1">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        disabled={loading}
+                                        onClick={() => {
+                                          setAnsweredConfirm(prev => ({ ...prev, [`${msg.id}:${i}`]: true }))
+                                          handleSend('Yes, confirmed — please proceed with the above.')
+                                        }}
+                                        className="h-7 px-3 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer font-medium rounded-lg"
+                                      >
+                                        Confirm
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={loading}
+                                        onClick={() => {
+                                          setAnsweredConfirm(prev => ({ ...prev, [`${msg.id}:${i}`]: true }))
+                                          handleSend('Cancelled — do not proceed with the above.')
+                                        }}
+                                        className="h-7 px-3 text-xs cursor-pointer font-medium rounded-lg"
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  )}
 
                                   {/* View & Print Invoice Button - Only on Sales Checkouts */}
                                   {isCheckout && invNum && (
@@ -601,7 +634,7 @@ export function ChatClient({ profile }: { profile: any }) {
                                       <Button
                                         type="button"
                                         size="sm"
-                                        onClick={() => handleOpenInvoice(invNum, act.data)}
+                                        onClick={() => handleOpenInvoice(invNum, act.data as InvoiceModalData)}
                                         className="h-7 px-3 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-600 dark:hover:bg-emerald-500 shadow-xs cursor-pointer font-medium rounded-lg"
                                       >
                                         <Receipt className="h-3.5 w-3.5" />

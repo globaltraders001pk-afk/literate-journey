@@ -23,7 +23,7 @@ export default async function ChatPage() {
 
   return (
     <Suspense fallback={<ChatLoading />}>
-      <ChatClient profile={profile} />
+      <ChatClient />
     </Suspense>
   )
 }
