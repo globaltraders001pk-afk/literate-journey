@@ -45,7 +45,22 @@ interface CompletedSale {
   gstAmount: number
 }
 
-export function POSClient({ products, customers, stockByProduct }: { products: any[], customers: any[], stockByProduct?: Record<string, number> }) {
+export interface PosProduct {
+  id: string
+  name: string
+  sku: string | null
+  selling_price: number
+  cost_price?: number | null
+  is_active: boolean
+}
+
+export interface PosCustomer {
+  id: string
+  name: string
+  phone?: string | null
+}
+
+export function POSClient({ products, customers, stockByProduct }: { products: PosProduct[], customers: PosCustomer[], stockByProduct?: Record<string, number> }) {
   const { organization } = useOrganization()
   const [cart, setCart] = useState<CartItem[]>([])
   const [customerId, setCustomerId] = useState<string>('')
@@ -76,7 +91,7 @@ export function POSClient({ products, customers, stockByProduct }: { products: a
   // server re-checks stock inside the checkout transaction and
   // refuses overselling, so this is only the cashier-facing
   // guard — a stale count here can never oversell.
-  const addToCart = (product: any) => {
+  const addToCart = (product: PosProduct) => {
     const stock = stockByProduct?.[product.id]
     const inCart = cart.find(item => item.product_id === product.id)?.quantity ?? 0
     if (stock !== undefined && inCart + 1 > stock) {

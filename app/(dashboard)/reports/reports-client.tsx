@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import type { getComprehensiveReports } from '@/app/actions/reports'
 import { formatPKR } from '@/lib/format-currency'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -21,7 +22,10 @@ import {
   PieChart
 } from 'lucide-react'
 
-export function ReportsClient({ data }: { data: any }) {
+export type ReportsData = NonNullable<Awaited<ReturnType<typeof getComprehensiveReports>>>
+
+export function ReportsClient({ data }: { data: ReportsData | null }) {
+  if (!data) return null
   const [activeTab, setActiveTab] = useState<'sales' | 'inventory' | 'vendors' | 'pnl'>('sales')
   const [salesPeriod, setSalesPeriod] = useState<'today' | 'week' | 'month' | 'all'>('month')
 
@@ -35,7 +39,7 @@ export function ReportsClient({ data }: { data: any }) {
       ? salesMetrics.week
       : salesPeriod === 'month'
       ? salesMetrics.month
-      : { total: salesMetrics.allTimeTotal, count: salesMetrics.dailyTrend.reduce((s: number, d: any) => s + d.count, 0) }
+      : { total: salesMetrics.allTimeTotal, count: salesMetrics.dailyTrend.reduce((s: number, d) => s + d.count, 0) }
 
   const avgTicket = currentSales.count > 0 ? currentSales.total / currentSales.count : 0
 
@@ -161,7 +165,7 @@ export function ReportsClient({ data }: { data: any }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {salesMetrics.dailyTrend.map((d: any) => (
+                    {salesMetrics.dailyTrend.map((d) => (
                       <TableRow key={d.date}>
                         <TableCell className="font-medium">{d.date}</TableCell>
                         <TableCell className="text-center">{d.count}</TableCell>
@@ -195,7 +199,7 @@ export function ReportsClient({ data }: { data: any }) {
                         </TableCell>
                       </TableRow>
                     )}
-                    {salesMetrics.topSellingProducts.map((p: any, idx: number) => (
+                    {salesMetrics.topSellingProducts.map((p, idx: number) => (
                       <TableRow key={idx}>
                         <TableCell className="font-medium">{p.name}</TableCell>
                         <TableCell className="text-center">{p.quantity}</TableCell>
@@ -286,7 +290,7 @@ export function ReportsClient({ data }: { data: any }) {
                       </TableCell>
                     </TableRow>
                   )}
-                  {stockMetrics.topWastedProducts.map((w: any, i: number) => (
+                  {stockMetrics.topWastedProducts.map((w, i: number) => (
                     <TableRow key={i}>
                       <TableCell className="font-medium">{w.name}</TableCell>
                       <TableCell className="text-right font-semibold text-destructive">{w.quantity}</TableCell>
@@ -352,7 +356,7 @@ export function ReportsClient({ data }: { data: any }) {
                       </TableCell>
                     </TableRow>
                   )}
-                  {vendorMetrics.vendorSummary.map((v: any, i: number) => (
+                  {vendorMetrics.vendorSummary.map((v, i: number) => (
                     <TableRow key={i}>
                       <TableCell className="font-medium text-foreground">{v.vendorName}</TableCell>
                       <TableCell className="text-center">{v.orderCount}</TableCell>

@@ -3,6 +3,7 @@
 import * as React from 'react'
 import NextImage from 'next/image'
 import { useTheme } from 'next-themes'
+import type { OrganizationData } from '@/components/providers/organization-provider'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -55,7 +56,7 @@ export function SettingsClient({
   isOwner = false,
   canManageFbr = false
 }: { 
-  organization: any; 
+  organization: OrganizationData | null; 
   isOwner?: boolean;
   canManageFbr?: boolean;
 }) {
@@ -224,9 +225,9 @@ export function SettingsClient({
         setLogoSuccess('Logo uploaded and applied everywhere instantly!')
         handleCancelPreview()
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setUploadPending(false)
-      const msg = err?.message || ''
+      const msg = err instanceof Error ? err.message : ''
       if (msg.includes('Body exceeded') || msg.includes('limit')) {
         setLogoError('Image payload exceeded server limit. Please upload an image under 5MB.')
       } else {
@@ -254,9 +255,9 @@ export function SettingsClient({
         }
         setLogoSuccess('Logo removed. Default store branding restored everywhere.')
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setRemovePending(false)
-      setLogoError(err?.message || 'Failed to remove logo. Please try again.')
+      setLogoError(err instanceof Error ? err.message : 'Failed to remove logo. Please try again.')
     }
   }
 
@@ -283,9 +284,9 @@ export function SettingsClient({
         setShowUrlInput(false)
         setCustomLogoUrl('')
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setUrlPending(false)
-      setLogoError(err?.message || 'Failed to save logo URL. Please try again.')
+      setLogoError(err instanceof Error ? err.message : 'Failed to save logo URL. Please try again.')
     }
   }
 
@@ -330,9 +331,9 @@ export function SettingsClient({
         }
         setOpen(false)
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setPending(false)
-      setErrorMessage(err?.message || 'Failed to update organization details.')
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to update organization details.')
     }
   }
 

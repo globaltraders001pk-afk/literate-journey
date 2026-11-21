@@ -79,10 +79,18 @@ export function InvoiceModal({
               total_amount: Number(res.total_amount || 0),
               payment_method: res.payment_method || 'CASH',
               date: res.created_at,
-              customer: (Array.isArray(res.customer) ? res.customer[0]?.name : (res.customer as any)?.name) || 'Walk-in (Guest)',
-              items: (res.items || []).map((it: any) => ({
+              customer: (Array.isArray(res.customer) ? res.customer[0]?.name : (res.customer as { name?: string | null } | null)?.name) || 'Walk-in (Guest)',
+              // The many-to-one product embed arrives as a single
+              // object at runtime; supabase-js types it as an array,
+              // hence the cast (compile-time only).
+              items: ((res.items || []) as unknown as Array<{
+                product?: { name?: string | null } | null
+                quantity?: number | null
+                unit_price?: number | string | null
+                subtotal?: number | string | null
+              }>).map((it) => ({
                 product_name: it.product?.name || 'Product',
-                quantity: it.quantity,
+                quantity: it.quantity ?? 0,
                 unit_price: Number(it.unit_price || 0),
                 subtotal: Number(it.subtotal || 0)
               }))
