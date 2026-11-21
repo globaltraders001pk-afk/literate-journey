@@ -1004,12 +1004,12 @@ export function SettingsClient({
                     name="fbr_token"
                     type="password"
                     autoComplete="off"
-                    placeholder="Paste the FBR token here when the client provides it"
-                    defaultValue={organization?.fbr_token || ''}
+                    placeholder="Paste a new FBR token here to replace the stored one"
+                    defaultValue=""
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Leave empty until the client supplies the real token. Backend
-                    only — never printed on the invoice.
+                    Leave empty to keep the stored token. The token is never
+                    shown back and never printed on the invoice.
                   </p>
                 </div>
                 <div className="grid gap-2">

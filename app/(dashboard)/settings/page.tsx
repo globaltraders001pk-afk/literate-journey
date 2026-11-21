@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { getUserProfile } from '@/lib/auth-utils'
+import { getUserProfile, ORGANIZATION_PUBLIC_COLUMNS } from '@/lib/auth-utils'
 import { SettingsClient } from './settings-client'
 
 export default async function SettingsPage() {
@@ -10,7 +10,7 @@ export default async function SettingsPage() {
   if (profile?.organization_id) {
     const { data } = await supabase
       .from('organizations')
-      .select('*')
+      .select(ORGANIZATION_PUBLIC_COLUMNS)
       .eq('id', profile.organization_id)
       .single()
     organization = data

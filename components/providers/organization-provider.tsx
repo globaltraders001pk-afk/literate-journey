@@ -11,8 +11,9 @@ export interface OrganizationData {
   email?: string | null
   address?: string | null
   // FBR / invoice settings (DB columns added by fbr-invoice-v2-delta.sql; null until the SQL is run)
+  // NOTE: fbr_token is intentionally NOT part of this type — it is
+  // backend-only and must never be serialized to the browser.
   ntn?: string | null
-  fbr_token?: string | null
   invoice_prefix?: string | null
   bank_name?: string | null
   bank_iban?: string | null
