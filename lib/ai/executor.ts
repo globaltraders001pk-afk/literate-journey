@@ -1074,7 +1074,6 @@ export async function executeErpTool(
           items = [],
           payment_method = 'CASH',
           customer_name_or_phone,
-          notes
         } = args
 
         // 1. Build line items list
@@ -1120,7 +1119,9 @@ export async function executeErpTool(
 
           const prod = products[0]
           const qty = Number(it.quantity) || 1
-          const unitPrice = it.unit_price !== undefined ? Number(it.unit_price) : Number(prod.selling_price || 0)
+          // Catalog price only: a caller-supplied unit_price is
+          // ignored here and re-priced again inside the RPC.
+          const unitPrice = Number(prod.selling_price || 0)
           const subtotal = qty * unitPrice
 
           resolvedItems.push({
@@ -1131,8 +1132,6 @@ export async function executeErpTool(
             subtotal
           })
         }
-
-        const totalAmount = resolvedItems.reduce((acc, i) => acc + i.subtotal, 0)
 
         // 3. Resolve customer if provided
         let customerId: string | null = null
@@ -1166,95 +1165,45 @@ export async function executeErpTool(
           normalizedPayment = 'CASH'
         }
 
-        // 5. Ensure valid branch
-        let effectiveBranchId = branchId
-        if (!effectiveBranchId) {
-          const { data: branch } = await supabase
-            .from('branches')
-            .select('id')
-            .eq('organization_id', orgId)
-            .limit(1)
-            .single()
+        // 5. One atomic checkout (QA audit C3/H5): the RPC
+        // re-prices from the catalog, checks stock, mints the
+        // sequential serial (GT-226/NNNN) under an org-row lock,
+        // and writes the sale + items + movements + customer
+        // total in a single transaction. The old code minted
+        // INV-<Date.now> itself and inserted the legs in
+        // parallel with unchecked results, so a failure left a
+        // half-written sale with a timestamp serial.
+        const { data: checkout, error: checkoutError } = await supabase.rpc('process_checkout', {
+          p_customer_id: customerId,
+          p_payment_method: normalizedPayment,
+          p_items: resolvedItems.map((item) => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+          })),
+        })
 
-          if (branch) {
-            effectiveBranchId = branch.id
-          } else {
-            const { data: newBranch } = await supabase
-              .from('branches')
-              .insert({ organization_id: orgId, name: 'Main Branch' })
-              .select('id')
-              .single()
-            if (newBranch) effectiveBranchId = newBranch.id
+        if (checkoutError) {
+          return {
+            success: false,
+            action: 'Checkout Failed',
+            details: `Cannot checkout: ${checkoutError.message}`,
           }
         }
 
-        const invoice_number = `INV-${Date.now().toString().slice(-6)}`
-
-        // 6. Insert into sales
-        const { data: sale, error: saleError } = await supabase
-          .from('sales')
-          .insert({
-            organization_id: orgId,
-            branch_id: effectiveBranchId,
-            customer_id: customerId,
-            invoice_number,
-            subtotal: totalAmount,
-            total_amount: totalAmount,
-            payment_method: normalizedPayment,
-            created_by: profile.id
-          })
-          .select('id, invoice_number')
-          .single()
-
-        if (saleError) throw new Error(saleError.message)
-
-        // 7. Batch insert sale_items and inventory_movements (STOCK_OUT) in parallel
-        const saleItemsPayload = resolvedItems.map(item => ({
-          sale_id: sale.id,
-          product_id: item.product_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          subtotal: item.subtotal
-        }))
-
-        const inventoryMovementsPayload = resolvedItems.map(item => ({
-          organization_id: orgId,
-          branch_id: effectiveBranchId,
-          product_id: item.product_id,
-          movement_type: 'STOCK_OUT',
-          quantity: -item.quantity,
-          reference_type: 'sale',
-          reference_id: sale.id,
-          notes: notes || `POS Sale Invoice ${invoice_number}`,
-          created_by: profile.id
-        }))
-
-        const tasks: PromiseLike<any>[] = [
-          supabase.from('sale_items').insert(saleItemsPayload),
-          supabase.from('inventory_movements').insert(inventoryMovementsPayload)
-        ]
-
-        if (customerId) {
-          tasks.push(
-            (async () => {
-              const { data: customerData } = await supabase
-                .from('customers')
-                .select('total_spent')
-                .eq('id', customerId)
-                .single()
-              const currentTotal = customerData?.total_spent || 0
-              await supabase
-                .from('customers')
-                .update({ total_spent: Number(currentTotal) + totalAmount })
-                .eq('id', customerId)
-            })()
-          )
+        const receipt = checkout as { invoice_number?: string; total_amount?: number } | null
+        const invoice_number = receipt?.invoice_number
+        // The server-computed total (catalog prices), not the
+        // sum of the resolved display lines.
+        const totalAmount = Number(receipt?.total_amount) || 0
+        if (!invoice_number) {
+          return {
+            success: false,
+            action: 'Checkout Failed',
+            details: 'Checkout failed: no invoice was created.',
+          }
         }
 
-        await Promise.all(tasks)
-
         revalidatePath('/sales/pos')
-        revalidatePath('/sales/history')
         revalidatePath('/inventory/stock')
         revalidatePath('/inventory/movements')
         revalidatePath('/dashboard')
