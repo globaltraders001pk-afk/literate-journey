@@ -11,6 +11,12 @@ export async function getCheeseCommandCenterData() {
     createClient()
   ])
 
+  // Org scope for every query below (QA audit H2). The dashboard
+  // layout redirects unauthenticated users, so a missing profile
+  // is unreachable in practice; the nil UUID matches nothing and
+  // keeps the function fail-closed instead of leaking all tenants.
+  const orgId = profile?.organization_id ?? '00000000-0000-0000-0000-000000000000'
+
   const date = new Date()
   const month = date.getMonth() + 1
   const year = date.getFullYear()
@@ -38,21 +44,24 @@ export async function getCheeseCommandCenterData() {
   ] = await Promise.all([
     getStockLevels(),
     getBatches(),
-    supabase.from('categories').select('*', { count: 'exact', head: true }),
-    supabase.from('products').select('*', { count: 'exact', head: true }),
+    supabase.from('categories').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
+    supabase.from('products').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
     supabase
       .from('sales')
       .select('total_amount, created_at')
+      .eq('organization_id', orgId)
       .gte('created_at', `${year}-${month.toString().padStart(2, '0')}-01`)
       .lt('created_at', month === 12 ? `${year + 1}-01-01` : `${year}-${(month + 1).toString().padStart(2, '0')}-01`),
     supabase
       .from('sales')
       .select('total_amount')
+      .eq('organization_id', orgId)
       .gte('created_at', `${prevYear}-${prevMonth.toString().padStart(2, '0')}-01`)
       .lt('created_at', `${year}-${month.toString().padStart(2, '0')}-01`),
     supabase
       .from('sales')
       .select('total_amount, created_at')
+      .eq('organization_id', orgId)
       .gte('created_at', sevenDaysAgo.toISOString())
       .order('created_at', { ascending: true }),
     supabase
@@ -66,11 +75,16 @@ export async function getCheeseCommandCenterData() {
         customers (name),
         sale_items (quantity, products (name))
       `)
+      .eq('organization_id', orgId)
       .order('created_at', { ascending: false })
       .limit(6),
+    // sale_items has no organization_id column of its own, so it is
+    // scoped through its parent sale (inner join: rows whose sale
+    // is in another org never reach the client).
     supabase
       .from('sale_items')
-      .select('quantity, subtotal, products (id, name, sku)')
+      .select('quantity, subtotal, products (id, name, sku), sales!inner(organization_id)')
+      .eq('sales.organization_id', orgId)
       .order('id', { ascending: false })
       .limit(300),
     getTasks()

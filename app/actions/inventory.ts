@@ -1,15 +1,18 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { checkAccess } from '@/lib/auth-utils'
+import { checkAccess, getUserProfile } from '@/lib/auth-utils'
 import { generateAutoBatchNumber } from '@/lib/batch-number'
 import { revalidatePath } from 'next/cache'
 
 export async function getCategories() {
+  const profile = await getUserProfile()
+  if (!profile) return []
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('categories')
     .select('*')
+    .eq('organization_id', profile.organization_id)
     .order('created_at', { ascending: false })
   
   if (error) throw new Error(error.message)
@@ -54,34 +57,50 @@ export async function updateCategory(id: string, formData: FormData) {
   
   if (!name) return { error: 'Name is required' }
 
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+
   const supabase = await createClient()
 
-  const { error } = await supabase
+  // Org-scoped (QA audit H12): a bare id must never update another
+  // tenant's row. Zero matched rows means unknown id or wrong org.
+  const { data, error } = await supabase
     .from('categories')
     .update({ name, description })
     .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .select('id')
 
   if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'Category not found in your organization.' }
   
   revalidatePath('/inventory/categories')
   return { success: true }
 }
 
 export async function deleteCategory(id: string) {
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+
   const supabase = await createClient()
   
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('categories')
     .delete()
     .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .select('id')
 
   if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'Category not found in your organization.' }
   
   revalidatePath('/inventory/categories')
   return { success: true }
 }
 
 export async function getProducts() {
+  const profile = await getUserProfile()
+  if (!profile) return []
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('products')
@@ -89,6 +108,7 @@ export async function getProducts() {
       *,
       categories(name)
     `)
+    .eq('organization_id', profile.organization_id)
     .order('created_at', { ascending: false })
   
   if (error) throw new Error(error.message)
@@ -163,9 +183,14 @@ export async function updateProduct(id: string, formData: FormData) {
 
   if (!name || !selling_price || !cost_price) return { error: 'Required fields missing' }
 
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+
   const supabase = await createClient()
 
-  const { error } = await supabase
+  // Org-scoped (QA audit H12): zero matched rows means unknown id
+  // or another org's product.
+  const { data, error } = await supabase
     .from('products')
     .update({
       name,
@@ -178,8 +203,11 @@ export async function updateProduct(id: string, formData: FormData) {
       minimum_stock_level: min_stock ? parseInt(min_stock as string) : 0,
     })
     .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .select('id')
 
   if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'Product not found in your organization.' }
   
   revalidatePath('/inventory/products')
   return { success: true }
@@ -194,6 +222,9 @@ export async function deleteProduct(id: string) {
 
   const supabase = await createClient()
 
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+
   // Check if product has sales or inventory movements
   const [{ count: movementCount }, { count: saleCount }] = await Promise.all([
     supabase.from('inventory_movements').select('*', { count: 'exact', head: true }).eq('product_id', id),
@@ -201,25 +232,33 @@ export async function deleteProduct(id: string) {
   ])
 
   if ((movementCount && movementCount > 0) || (saleCount && saleCount > 0)) {
-    // Soft delete to preserve historical integrity
-    const { error } = await supabase
+    // Soft delete to preserve historical integrity. Org-scoped
+    // (QA audit H12): a zero-row result means unknown id or
+    // another org's product — never report success for it.
+    const { data, error } = await supabase
       .from('products')
       .update({ is_active: false })
       .eq('id', id)
+      .eq('organization_id', profile.organization_id)
+      .select('id')
 
     if (error) return { error: error.message }
+    if (!data || data.length === 0) return { error: 'Product not found in your organization.' }
     revalidatePath('/inventory/products')
     revalidatePath('/inventory/stock')
     return { success: true, message: 'Product has active history and was deactivated.' }
   }
 
   // Hard delete if no transactions exist
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('products')
     .delete()
     .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .select('id')
 
   if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'Product not found in your organization.' }
   
   revalidatePath('/inventory/products')
   revalidatePath('/inventory/stock')
@@ -227,8 +266,14 @@ export async function deleteProduct(id: string) {
 }
 
 export async function getStockLevels(organizationId?: string) {
+  // Org scope (QA audit H2): radars pass their org explicitly;
+  // every other caller is scoped to the signed-in user's org.
+  // Unauthenticated callers get nothing, not all tenants.
+  const orgId = organizationId ?? (await getUserProfile())?.organization_id
+  if (!orgId) return []
+
   const supabase = await createClient()
-  let query = supabase
+  const { data, error } = await supabase
     .from('products')
     .select(`
       id,
@@ -240,15 +285,8 @@ export async function getStockLevels(organizationId?: string) {
       )
     `)
     .eq('is_active', true)
-
-  // Scoped only when the caller passes an org (radars do); the
-  // unscoped behaviour for the existing stock/dashboard callers is
-  // unchanged.
-  if (organizationId) {
-    query = query.eq('organization_id', organizationId)
-  }
-
-  const { data, error } = await query.order('name')
+    .eq('organization_id', orgId)
+    .order('name')
   
   if (error) throw new Error(error.message)
   
@@ -268,6 +306,8 @@ export async function getStockLevels(organizationId?: string) {
 }
 
 export async function getMovements(limit: number = 200) {
+  const profile = await getUserProfile()
+  if (!profile) return []
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('inventory_movements')
@@ -281,6 +321,7 @@ export async function getMovements(limit: number = 200) {
       products(name, sku),
       profiles(full_name)
     `)
+    .eq('organization_id', profile.organization_id)
     .order('created_at', { ascending: false })
     .limit(limit)
   
@@ -397,22 +438,20 @@ export async function createMovement(formData: FormData) {
 }
 
 export async function getBatches(organizationId?: string) {
+  // Same org rule as getStockLevels: radars pass their org,
+  // everyone else is scoped to the signed-in user's org.
+  const orgId = organizationId ?? (await getUserProfile())?.organization_id
+  if (!orgId) return []
+
   const supabase = await createClient()
-  let query = supabase
+  const { data, error } = await supabase
     .from('product_batches')
     .select(`
       *,
       products(name, sku)
     `)
-
-  // Scoped only when the caller passes an org (radars do); the
-  // unscoped behaviour for the existing batches/dashboard callers is
-  // unchanged.
-  if (organizationId) {
-    query = query.eq('organization_id', organizationId)
-  }
-
-  const { data, error } = await query.order('expiry_date', { ascending: true })
+    .eq('organization_id', orgId)
+    .order('expiry_date', { ascending: true })
   
   if (error) throw new Error(error.message)
   return data
@@ -480,6 +519,11 @@ export async function createBatch(formData: FormData) {
 }
 
 export async function getDashboardStats() {
+  const profile = await getUserProfile()
+  if (!profile) {
+    return { lowStock: 0, expiringBatches: 0, totalCategories: 0, totalProducts: 0 }
+  }
+  const orgId = profile.organization_id
   const supabase = await createClient()
   
   // 1. Get low stock products
@@ -490,6 +534,7 @@ export async function getDashboardStats() {
   const { data: batches } = await supabase
     .from('product_batches')
     .select('expiry_date')
+    .eq('organization_id', orgId)
     .gt('quantity_remaining', 0)
   
   let expiringCount = 0
@@ -508,11 +553,13 @@ export async function getDashboardStats() {
   const { count: categoryCount } = await supabase
     .from('categories')
     .select('*', { count: 'exact', head: true })
+    .eq('organization_id', orgId)
 
   // 4. Get total products
   const { count: productCount } = await supabase
     .from('products')
     .select('*', { count: 'exact', head: true })
+    .eq('organization_id', orgId)
 
   return {
     lowStock: lowStockProducts,
