@@ -13,10 +13,9 @@ function Card({
       data-size={size}
       className={cn(
         "group/card relative flex flex-col gap-(--card-spacing) overflow-hidden rounded-2xl",
-        "bg-gradient-to-br from-white/95 via-emerald-50/70 to-teal-100/60 dark:from-emerald-950/50 dark:via-zinc-900/90 dark:to-cyan-950/40",
-        "backdrop-blur-md py-(--card-spacing) text-sm text-card-foreground",
-        "border border-emerald-500/25 dark:border-emerald-500/30",
-        "shadow-sm hover:shadow-xl hover:border-emerald-500/50 hover:-translate-y-0.5 transition-all duration-300",
+        "bg-card py-(--card-spacing) text-sm text-card-foreground",
+        "border border-border",
+        "shadow-sm",
         "[--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl",
         className
       )}
