@@ -237,7 +237,7 @@ export function ReportsClient({ data }: { data: ReportsData | null }) {
             <Card className="border-border/70 shadow-xs">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-xs font-medium text-muted-foreground uppercase">Stock Sold</CardTitle>
-                <ArrowDownRight className="h-4 w-4 text-emerald-500" />
+                <ArrowDownRight className="h-4 w-4 text-blue-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-semibold text-foreground">-{stockMetrics.stockOutTotal}</div>

@@ -78,11 +78,11 @@ export function AppSidebar({ role }: { role: UserRole }) {
               />
             </div>
           ) : (
-            <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <div className="h-8 w-8 rounded-lg bg-white/15 text-white flex items-center justify-center shrink-0">
               <Store className="h-4 w-4" />
             </div>
           )}
-          <span className="font-semibold text-base tracking-tight text-foreground truncate group-hover:text-primary transition-colors">
+          <span className="font-semibold text-base tracking-tight text-sidebar-foreground truncate group-hover:text-white transition-colors">
             {organization?.name || 'Qurbat ERP'}
           </span>
         </Link>
@@ -106,31 +106,31 @@ export function AppSidebar({ role }: { role: UserRole }) {
                 render={<Link href="/chat" />} 
                 tooltip="AI Chat (Owner)"
                 isActive={isPrefix('/chat') && !currentSessionId}
-                className="text-emerald-600 dark:text-emerald-400 font-medium"
+                className="text-blue-600 dark:text-blue-400 font-medium"
               >
-                <Sparkles className="h-4 w-4 text-emerald-500 shrink-0" />
+                <Sparkles className="h-4 w-4 text-blue-500 shrink-0" />
                 <span className="flex items-center justify-between w-full">
                   AI Chat
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold uppercase tracking-wider border border-emerald-500/20">
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider border border-blue-500/20">
                     Pro
                   </span>
                 </span>
               </SidebarMenuButton>
 
               {/* Structured AI Sub-Panel */}
-              <div className="ml-3 pl-3 my-1.5 space-y-2 border-l-2 border-emerald-500/20 group-data-[collapsible=icon]:hidden">
+              <div className="ml-3 pl-3 my-1.5 space-y-2 border-l-2 border-blue-500/20 group-data-[collapsible=icon]:hidden">
                 {/* 1. New Chat Action Button */}
                 <Link
                   href="/chat"
                   className={cn(
                     "flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all group",
                     isExact('/chat') && !currentSessionId
-                      ? "bg-emerald-600 text-white shadow-xs font-semibold dark:bg-emerald-500"
+                      ? "bg-blue-600 text-white shadow-xs font-semibold dark:bg-blue-500"
                       : "bg-muted/50 hover:bg-muted text-foreground border border-border/70 hover:border-border shadow-2xs"
                   )}
                 >
                   <span className="flex items-center gap-1.5">
-                    <Plus className={cn("h-3.5 w-3.5 transition-transform group-hover:scale-110", isExact('/chat') && !currentSessionId ? "text-white" : "text-emerald-500")} />
+                    <Plus className={cn("h-3.5 w-3.5 transition-transform group-hover:scale-110", isExact('/chat') && !currentSessionId ? "text-white" : "text-blue-500")} />
                     <span>New Chat</span>
                   </span>
                   <span className={cn("text-[10px] font-mono px-1 py-0.5 rounded", isExact('/chat') && !currentSessionId ? "bg-white/20 text-white" : "bg-background/80 text-muted-foreground border border-border/40")}>
@@ -162,7 +162,7 @@ export function AppSidebar({ role }: { role: UserRole }) {
                           className={cn(
                             "group/chat flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-md text-xs transition-all relative",
                             isActive
-                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium border border-emerald-500/25 shadow-2xs"
+                              ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 font-medium border border-blue-500/25 shadow-2xs"
                               : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                           )}
                         >
@@ -173,7 +173,7 @@ export function AppSidebar({ role }: { role: UserRole }) {
                           >
                             <MessageSquare className={cn(
                               "h-3.5 w-3.5 shrink-0 transition-colors",
-                              isActive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground/60 group-hover/chat:text-foreground"
+                              isActive ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground/60 group-hover/chat:text-foreground"
                             )} />
                             <span className="truncate">{chat.title}</span>
                           </Link>
@@ -419,7 +419,7 @@ export function AppSidebar({ role }: { role: UserRole }) {
           {/* Theme Toggle Button */}
           <Tooltip>
             <TooltipTrigger render={
-              <ThemeToggleQuick className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent cursor-pointer" />
+              <ThemeToggleQuick className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent cursor-pointer" />
             } />
             <TooltipContent side="top">Theme</TooltipContent>
           </Tooltip>
@@ -431,8 +431,8 @@ export function AppSidebar({ role }: { role: UserRole }) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-sidebar-accent cursor-pointer ${
-                    isExact('/settings') ? 'bg-primary/15 text-primary' : ''
+                  className={`h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent cursor-pointer ${
+                    isExact('/settings') ? 'bg-primary text-primary-foreground' : ''
                   }`}
                   render={<Link href="/settings" />}
                   aria-label="Settings"
@@ -452,7 +452,7 @@ export function AppSidebar({ role }: { role: UserRole }) {
                   type="submit"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                  className="h-8 w-8 text-sidebar-foreground/70 hover:text-red-300 hover:bg-white/10 cursor-pointer"
                   aria-label="Logout"
                 >
                   <LogOut className="h-4 w-4" />

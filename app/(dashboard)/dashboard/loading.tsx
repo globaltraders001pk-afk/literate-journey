@@ -28,7 +28,7 @@ export default function DashboardLoading() {
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Executive Business Dashboard
             </h1>
-            <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-medium">
+            <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/20 font-medium">
               Live
             </Badge>
           </div>

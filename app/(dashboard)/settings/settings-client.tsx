@@ -410,7 +410,7 @@ export function SettingsClient({
                 </div>
                 <div className="flex items-center justify-between pt-1">
                   <div className="flex items-center gap-2">
-                    <Moon className="h-4 w-4 text-emerald-400" />
+                    <Moon className="h-4 w-4 text-blue-400" />
                     <span className="font-semibold text-sm">Dark Mode</span>
                   </div>
                   {mounted && theme === 'dark' && (
@@ -485,7 +485,7 @@ export function SettingsClient({
                 size="sm"
                 onClick={() => setTheme('dark')}
               >
-                <Moon className="h-3.5 w-3.5 mr-1 text-emerald-400" />
+                <Moon className="h-3.5 w-3.5 mr-1 text-blue-400" />
                 Dark
               </Button>
               <Button
@@ -516,7 +516,7 @@ export function SettingsClient({
 
           <div className="flex items-center gap-2 shrink-0">
             {isOwner ? (
-              <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-[11px] gap-1 py-1">
+              <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 text-[11px] gap-1 py-1">
                 <Check className="h-3 w-3" /> Owner Managed
               </Badge>
             ) : (

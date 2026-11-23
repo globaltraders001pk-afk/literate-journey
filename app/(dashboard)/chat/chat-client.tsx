@@ -484,7 +484,7 @@ export function ChatClient() {
                         onClick={() => handleSend('Add a new product: Smoked Cheddar Cheese, SKU CHD-02, cost Rs 900, price Rs 1,800, category Dairy, stock 30')}
                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-muted text-xs text-left text-foreground transition-colors"
                       >
-                        <Package className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <div>
                           <div className="font-medium">Add Product</div>
                           <div className="text-[10px] text-muted-foreground">Catalog, pricing & stock</div>
@@ -494,7 +494,7 @@ export function ChatClient() {
                         onClick={() => handleSend('Record attendance for employee today as Present with arrival 09:00 AM')}
                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-muted text-xs text-left text-foreground transition-colors"
                       >
-                        <CalendarCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                        <CalendarCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <div>
                           <div className="font-medium">Log Attendance</div>
                           <div className="text-[10px] text-muted-foreground">Daily staff check-in</div>
@@ -514,7 +514,7 @@ export function ChatClient() {
                         onClick={() => handleSend('Assign an urgent task to audit refrigerator temperatures due tomorrow')}
                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-muted text-xs text-left text-foreground transition-colors"
                       >
-                        <ClipboardList className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                        <ClipboardList className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <div>
                           <div className="font-medium">Assign Task</div>
                           <div className="text-[10px] text-muted-foreground">Operational duty</div>
@@ -608,7 +608,7 @@ export function ChatClient() {
                                           setAnsweredConfirm(prev => ({ ...prev, [`${msg.id}:${i}`]: true }))
                                           handleSend('Yes, confirmed — please proceed with the above.')
                                         }}
-                                        className="h-7 px-3 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer font-medium rounded-lg"
+                                        className="h-7 px-3 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white shadow-xs cursor-pointer font-medium rounded-lg"
                                       >
                                         Confirm
                                       </Button>
@@ -635,7 +635,7 @@ export function ChatClient() {
                                         type="button"
                                         size="sm"
                                         onClick={() => handleOpenInvoice(invNum, act.data as InvoiceModalData)}
-                                        className="h-7 px-3 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-600 dark:hover:bg-emerald-500 shadow-xs cursor-pointer font-medium rounded-lg"
+                                        className="h-7 px-3 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-500 shadow-xs cursor-pointer font-medium rounded-lg"
                                       >
                                         <Receipt className="h-3.5 w-3.5" />
                                         <span>View & Print Invoice ({invNum})</span>
@@ -762,7 +762,7 @@ export function ChatClient() {
                     onClick={() => handleSend('Add a new product: Smoked Cheddar Cheese, SKU CHD-02, cost Rs 900, price Rs 1,800, category Dairy, stock 30')}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-muted text-xs text-left text-foreground transition-colors"
                   >
-                    <Package className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     <div>
                       <div className="font-medium">Add Product</div>
                       <div className="text-[10px] text-muted-foreground">Catalog & stock</div>
@@ -772,7 +772,7 @@ export function ChatClient() {
                     onClick={() => handleSend('Record attendance for employee today as Present with arrival 09:00 AM')}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-muted text-xs text-left text-foreground transition-colors"
                   >
-                    <CalendarCheck className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                    <CalendarCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     <div>
                       <div className="font-medium">Log Attendance</div>
                       <div className="text-[10px] text-muted-foreground">Staff check-in</div>
@@ -792,7 +792,7 @@ export function ChatClient() {
                     onClick={() => handleSend('Assign an urgent task to audit refrigerator temperatures due tomorrow')}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-muted text-xs text-left text-foreground transition-colors"
                   >
-                    <ClipboardList className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                    <ClipboardList className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     <div>
                       <div className="font-medium">Assign Task</div>
                       <div className="text-[10px] text-muted-foreground">Operational duty</div>

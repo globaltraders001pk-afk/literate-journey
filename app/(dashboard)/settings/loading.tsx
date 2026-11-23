@@ -62,7 +62,7 @@ export default function SettingsLoading() {
                 </div>
                 <div className="flex items-center justify-between pt-1">
                   <div className="flex items-center gap-2">
-                    <Moon className="h-4 w-4 text-emerald-400" />
+                    <Moon className="h-4 w-4 text-blue-400" />
                     <span className="font-semibold text-sm">Dark Mode</span>
                   </div>
                 </div>
@@ -99,7 +99,7 @@ export default function SettingsLoading() {
                   <Sun className="h-3.5 w-3.5 text-amber-500" /> Light
                 </div>
                 <div className="h-8 px-3 rounded-md border text-xs font-medium flex items-center gap-1">
-                  <Moon className="h-3.5 w-3.5 text-emerald-400" /> Dark
+                  <Moon className="h-3.5 w-3.5 text-blue-400" /> Dark
                 </div>
                 <div className="h-8 px-3 rounded-md border text-xs font-medium flex items-center gap-1">
                   <Laptop className="h-3.5 w-3.5" /> System
@@ -121,7 +121,7 @@ export default function SettingsLoading() {
                 Upload your business&apos;s official logo. When changed, it updates across the entire system instantly—including the sidebar, POS receipts, and invoices.
               </CardDescription>
             </div>
-            <Badge variant="default" className="bg-emerald-600 text-[11px] py-1 shrink-0">
+            <Badge variant="default" className="bg-blue-600 text-[11px] py-1 shrink-0">
               Owner Managed
             </Badge>
           </CardHeader>

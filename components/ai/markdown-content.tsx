@@ -66,7 +66,7 @@ export function InlineMarkdown({ text }: { text: string }) {
           return (
             <code
               key={i}
-              className="px-1.5 py-0.5 rounded-md bg-muted/80 border border-border/60 text-emerald-600 dark:text-emerald-400 font-mono text-[11px]"
+              className="px-1.5 py-0.5 rounded-md bg-muted/80 border border-border/60 text-blue-600 dark:text-blue-400 font-mono text-[11px]"
             >
               {p.val}
             </code>
@@ -335,7 +335,7 @@ function MarkdownBlockGroup({ text }: { text: string }) {
         <ul key={`ul-${i}`} className="space-y-1.5 my-2 pl-0.5">
           {listItems.map((item, lIdx) => (
             <li key={lIdx} className="flex items-start gap-2.5 text-xs sm:text-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0 mt-2" />
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 dark:bg-blue-400 shrink-0 mt-2" />
               <div className="flex-1 text-foreground leading-relaxed">
                 <InlineMarkdown text={item} />
               </div>
@@ -359,7 +359,7 @@ function MarkdownBlockGroup({ text }: { text: string }) {
         <ol key={`ol-${i}`} className="space-y-1.5 my-2 pl-0.5">
           {listItems.map((item, lIdx) => (
             <li key={lIdx} className="flex items-start gap-2.5 text-xs sm:text-sm">
-              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0 min-w-4 text-right">
+              <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 shrink-0 min-w-4 text-right">
                 {lIdx + 1}.
               </span>
               <div className="flex-1 text-foreground leading-relaxed">

@@ -29,7 +29,7 @@ export default function DashboardRootLoading() {
         {[...Array(4)].map((_, i) => (
           <div 
             key={i} 
-            className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-white/90 via-emerald-50/50 to-teal-50/40 dark:from-emerald-950/30 dark:via-zinc-900/60 dark:to-cyan-950/20 p-5 space-y-3"
+            className="rounded-2xl border border-border bg-card p-5 space-y-3"
           >
             <div className="flex items-center justify-between">
               <Skeleton className="h-3.5 w-24 rounded-md" />
@@ -45,7 +45,7 @@ export default function DashboardRootLoading() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Left Column (Span 2) */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-white/90 via-emerald-50/50 to-teal-50/40 dark:from-emerald-950/30 dark:via-zinc-900/60 dark:to-cyan-950/20 p-6 space-y-6">
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-6">
             <div className="flex items-center justify-between">
               <div className="space-y-1.5">
                 <Skeleton className="h-5 w-44 rounded-md" />
@@ -68,7 +68,7 @@ export default function DashboardRootLoading() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-white/90 via-emerald-50/50 to-teal-50/40 dark:from-emerald-950/30 dark:via-zinc-900/60 dark:to-cyan-950/20 p-6 space-y-4">
+          <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-1.5">
                 <Skeleton className="h-5 w-36 rounded-md" />
@@ -95,7 +95,7 @@ export default function DashboardRootLoading() {
 
         {/* Right Column (Span 1) */}
         <div className="space-y-6">
-          <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-white/90 via-emerald-50/50 to-teal-50/40 dark:from-emerald-950/30 dark:via-zinc-900/60 dark:to-cyan-950/20 p-5 space-y-4">
+          <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
             <div className="flex items-center gap-2.5">
               <Skeleton className="h-7 w-7 rounded-md" />
               <div className="space-y-1">
@@ -109,7 +109,7 @@ export default function DashboardRootLoading() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-white/90 via-emerald-50/50 to-teal-50/40 dark:from-emerald-950/30 dark:via-zinc-900/60 dark:to-cyan-950/20 p-5 space-y-4">
+          <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
             <div className="flex items-center justify-between">
               <Skeleton className="h-4 w-32 rounded" />
               <Skeleton className="h-3 w-16 rounded" />
