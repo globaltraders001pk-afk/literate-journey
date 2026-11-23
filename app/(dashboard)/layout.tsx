@@ -7,7 +7,6 @@ import { getUserProfile, getOrganization } from '@/lib/auth-utils'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Badge } from '@/components/ui/badge'
 import { OrganizationProvider } from '@/components/providers/organization-provider'
-import { ExpensiveAmbientMesh } from '@/components/expensive-ambient-mesh'
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const profile = await getUserProfile()
@@ -26,12 +25,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       <OrganizationProvider initialOrganization={organization}>
         <SidebarProvider>
           <AppSidebar role={profile.role} />
-          <main className="relative flex-1 overflow-hidden flex flex-col bg-background/95 transition-colors">
-            {/* Ultra-Luxury Ambient Gradient Aurora & Precision Grid */}
-            <ExpensiveAmbientMesh />
-
-            {/* Frosted Glass Floating Header */}
-            <header className="h-14 border-b border-border/50 flex items-center justify-between px-4 bg-background/60 backdrop-blur-xl sticky top-0 z-20 transition-colors">
+          <main className="relative flex-1 overflow-hidden flex flex-col bg-background transition-colors">
+            {/* Flat header */}
+            <header className="h-14 border-b border-border flex items-center justify-between px-4 bg-background sticky top-0 z-20 transition-colors">
               <div className="flex items-center gap-3">
                 <SidebarTrigger />
               </div>
