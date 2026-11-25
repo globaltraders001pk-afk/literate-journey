@@ -44,6 +44,36 @@ export async function getCheeseCommandCenterData() {
   sevenDaysAgo.setHours(0, 0, 0, 0)
 
   // Execute all independent database queries concurrently in parallel
+  // One failed query used to crash the whole page: getStockLevels()
+  // and getBatches() throw on a database error, and a Server
+  // Component throw surfaces in production as minified React error
+  // #441 with the real message hidden. So the two throwing loaders
+  // go through guarded helpers that log the real error server-side
+  // (visible in Vercel runtime logs) and fall back to empty data;
+  // the client shows a banner naming the failed section instead of
+  // the page dying. The other queries already degrade to [] on
+  // error (see the `data || []` fallbacks below) or return empty
+  // on error themselves (getTasks).
+  const loadErrors: string[] = []
+  const loadStockLevels = async () => {
+    try {
+      return await getStockLevels()
+    } catch (err) {
+      console.error('Dashboard: get_stock_levels failed', err)
+      loadErrors.push('Stock levels')
+      return []
+    }
+  }
+  const loadBatches = async () => {
+    try {
+      return await getBatches()
+    } catch (err) {
+      console.error('Dashboard: product_batches failed', err)
+      loadErrors.push('Batches')
+      return { rows: [], total: 0, limit: 0, offset: 0 }
+    }
+  }
+
   const [
     allStock,
     allBatches,
@@ -58,8 +88,8 @@ export async function getCheeseCommandCenterData() {
     vendorsRes,
     posRes
   ] = await Promise.all([
-    getStockLevels(),
-    getBatches(),
+    loadStockLevels(),
+    loadBatches(),
     supabase.from('categories').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
     supabase.from('products').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
     supabase
@@ -315,6 +345,10 @@ export async function getCheeseCommandCenterData() {
   return {
     role,
     radarSummary,
+    // Sections whose load failed (see the guarded loaders above):
+    // the client shows a banner naming them instead of the page
+    // crashing. Empty when everything loaded.
+    loadErrors,
     // True when the top-products ranking only saw the newest 300
     // sale_items (M11): the dashboard says so instead of ranking
     // a partial history silently.

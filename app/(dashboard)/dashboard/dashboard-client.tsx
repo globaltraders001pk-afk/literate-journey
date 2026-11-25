@@ -33,7 +33,7 @@ import type { RadarSummary } from '@/app/actions/radars'
 type DashboardData = Awaited<ReturnType<typeof getCheeseCommandCenterData>>
 
 export function DashboardClient({ data, radarSummary }: { data: DashboardData; radarSummary?: RadarSummary | null }) {
-  const { role, user_name, stats, dailyTrend, recentSales, topCheeses, lowStockItems, expiringBatches, activeTasks, topProductsTruncated } = data
+  const { role, user_name, stats, dailyTrend, recentSales, topCheeses, lowStockItems, expiringBatches, activeTasks, topProductsTruncated, loadErrors } = data
   const isEmployee = role === 'employee'
   const isManager = role === 'manager'
   const isAdminOrOwner = role === 'admin' || role === 'owner'
@@ -79,6 +79,19 @@ export function DashboardClient({ data, radarSummary }: { data: DashboardData; r
 
   return (
     <div className="space-y-6">
+
+      {/* Data-load warning — one failed query used to crash the whole
+          page (production React #441). The loader now degrades to
+          empty data and names the failed section here instead. */}
+      {loadErrors.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-amber-800 dark:text-amber-200">
+            Some dashboard data could not be loaded: <strong>{loadErrors.join(', ')}</strong>.
+            The numbers below may be incomplete — check the database and try again.
+          </p>
+        </div>
+      )}
       
       {/* 1. Header with greeting and Live Operations Badge */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-border/40">
