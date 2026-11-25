@@ -91,3 +91,4 @@ if the chat is used. No build-time secrets are needed.
   status. Do not treat it as a todo list without the owner's word — the owner
   decides what gets fixed and when.
 - `ANALYSIS.md` — codebase analysis (routes, data model, known risks).
+
