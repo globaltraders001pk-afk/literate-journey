@@ -13,7 +13,7 @@ import { Store } from 'lucide-react'
 export default function LoginPage() {
   const [state, action, pending] = useActionState(login, undefined)
   const [brand, setBrand] = useState<{ name: string; logo_url: string | null }>({
-    name: 'Qurbat ERP',
+    name: 'Global Traders',
     logo_url: null,
   })
 

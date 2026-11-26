@@ -106,18 +106,23 @@ export async function deleteCategory(id: string) {
   return { success: true }
 }
 
-export async function getProducts(options?: PageOptions) {
+export async function getProducts(options?: PageOptions & { activeOnly?: boolean }) {
   const profile = await getUserProfile()
   if (!profile) return { rows: [], total: 0, limit: 0, offset: 0 }
   const { limit, offset } = normalizePageOptions(options)
   const supabase = await createClient()
-  const { data, error, count } = await supabase
+  // A deleted product with history is only deactivated (soft
+  // delete), so the catalog must be able to hide inactive rows:
+  // the products list shows active products by default.
+  let query = supabase
     .from('products')
     .select(`
       *,
       categories(name)
     `, { count: 'exact' })
     .eq('organization_id', profile.organization_id)
+  if (options?.activeOnly) query = query.eq('is_active', true)
+  const { data, error, count } = await query
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 

@@ -803,7 +803,7 @@ export function ChatClient() {
             </div>
 
             <p className="text-[10px] text-muted-foreground text-center mt-2">
-              Qurbat AI directly manipulates your live database. Check details before making critical changes.
+              Global Traders AI directly manipulates your live database. Check details before making critical changes.
             </p>
           </div>
         </div>

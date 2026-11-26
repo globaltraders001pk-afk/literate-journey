@@ -349,7 +349,7 @@ export function SettingsClient({
             <CardTitle>Appearance & Theme</CardTitle>
           </div>
           <CardDescription>
-            Customize how Qurbat ERP looks on your device. Choose between light, dark, or system preference.
+            Customize how Global Traders looks on your device. Choose between light, dark, or system preference.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -830,7 +830,7 @@ export function SettingsClient({
                           id="name"
                           name="name"
                           required
-                          placeholder="e.g. Qurbat Business & Management"
+                          placeholder="e.g. Global Traders"
                           defaultValue={organization?.name || ''}
                         />
                       </div>
@@ -852,7 +852,7 @@ export function SettingsClient({
                           id="email"
                           name="email"
                           type="email"
-                          placeholder="admin@qurbat-erp.com"
+                          placeholder="admin@globaltraders.com"
                           defaultValue={organization?.email || ''}
                         />
                       </div>
@@ -923,7 +923,7 @@ export function SettingsClient({
                 ) : (
                   <Store className="h-4 w-4 text-primary shrink-0" />
                 )}
-                <span>{organization?.name || 'Qurbat Business & Management'}</span>
+                <span>{organization?.name || 'Global Traders'}</span>
               </div>
             </div>
             <div className="space-y-1">
@@ -937,7 +937,7 @@ export function SettingsClient({
               <span className="text-xs text-muted-foreground">Business Email</span>
               <p className="font-medium text-sm flex items-center gap-2">
                 <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                {organization?.email || 'admin@qurbat-erp.com'}
+                {organization?.email || 'admin@globaltraders.com'}
               </p>
             </div>
             <div className="space-y-1">

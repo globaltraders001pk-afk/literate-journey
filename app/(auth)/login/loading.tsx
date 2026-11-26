@@ -10,7 +10,7 @@ export default function LoginLoading() {
           <Store className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Qurbat ERP</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Global Traders</h1>
           <p className="text-xs text-muted-foreground">Business & Inventory Management System</p>
         </div>
       </div>

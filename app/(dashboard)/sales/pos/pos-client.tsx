@@ -472,7 +472,7 @@ export function POSClient({ products, customers, stockByProduct }: { products: P
                     ) : (
                       <Store className="h-4 w-4" />
                     )}
-                    <span>{organization?.name || 'Qurbat ERP'}</span>
+                    <span>{organization?.name || 'Global Traders'}</span>
                   </div>
                   <p className="receipt-subtitle text-[11px] text-muted-foreground">Sales Receipt / Tax Invoice</p>
                   {organization?.address && (

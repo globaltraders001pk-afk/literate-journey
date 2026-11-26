@@ -83,7 +83,7 @@ export function AppSidebar({ role }: { role: UserRole }) {
             </div>
           )}
           <span className="font-semibold text-base tracking-tight text-sidebar-foreground truncate group-hover:text-white transition-colors">
-            {organization?.name || 'Qurbat ERP'}
+            {organization?.name || 'Global Traders'}
           </span>
         </Link>
       </SidebarHeader>

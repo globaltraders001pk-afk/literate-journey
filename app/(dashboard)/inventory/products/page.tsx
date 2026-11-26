@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
 import { getProducts, getCategories } from '@/app/actions/inventory'
 import { getUserProfile } from '@/lib/auth-utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,17 +12,23 @@ import ProductsLoading from './loading'
 import { formatPKR } from '@/lib/format-currency'
 import { truncationNote } from '@/lib/pagination'
 
-export default function ProductsPage() {
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ showInactive?: string }>
+}) {
+  const params = await searchParams
+  const showInactive = params.showInactive === '1'
   return (
     <Suspense fallback={<ProductsLoading />}>
-      <ProductsDataLoader />
+      <ProductsDataLoader showInactive={showInactive} />
     </Suspense>
   )
 }
 
-async function ProductsDataLoader() {
+async function ProductsDataLoader({ showInactive }: { showInactive: boolean }) {
   const [{ rows: products, total: productsTotal }, categories, profile] = await Promise.all([
-    getProducts(),
+    getProducts({ activeOnly: !showInactive }),
     getCategories(),
     getUserProfile()
   ])
@@ -37,6 +44,12 @@ async function ProductsDataLoader() {
           <p className="text-sm text-muted-foreground mt-0.5">Manage your product catalog, weights, and pricing.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href={showInactive ? '/inventory/products' : '/inventory/products?showInactive=1'}
+            className="text-sm font-medium text-muted-foreground hover:text-foreground underline-offset-4 hover:underline whitespace-nowrap"
+          >
+            {showInactive ? 'Hide inactive' : 'Show inactive'}
+          </Link>
           <ExportProductsButton products={products} canViewCost={canViewCost} />
           <ProductForm categories={categories || []} canViewCost={canViewCost} />
         </div>
@@ -44,8 +57,8 @@ async function ProductsDataLoader() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Products</CardTitle>
-          <CardDescription>A list of all products in your catalog.</CardDescription>
+          <CardTitle>{showInactive ? 'All Products' : 'Active Products'}</CardTitle>
+          <CardDescription>{showInactive ? 'A list of all products in your catalog, including deactivated ones.' : 'A list of all active products in your catalog.'}</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>

@@ -23,7 +23,7 @@ export default function SettingsLoading() {
               <CardTitle>Appearance & Theme</CardTitle>
             </div>
             <CardDescription>
-              Customize how Qurbat ERP looks on your device. Choose between light, dark, or system preference.
+              Customize how Global Traders looks on your device. Choose between light, dark, or system preference.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">

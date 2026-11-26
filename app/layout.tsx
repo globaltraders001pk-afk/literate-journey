@@ -11,7 +11,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Qurbat ERP - Business & Inventory Management",
+  title: "Global Traders - Business & Inventory Management",
   description: "Enterprise grade business, inventory, and POS management platform",
 };
 

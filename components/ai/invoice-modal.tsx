@@ -270,7 +270,7 @@ export function InvoiceModal({
                     <Store className="h-4 w-4" />
                   )}
                   <span className="receipt-title tracking-tight uppercase">
-                    {organization?.name || 'QURBAT ERP'}
+                    {organization?.name || 'GLOBAL TRADERS'}
                   </span>
                 </div>
                 <p className="receipt-subtitle text-[11px] text-muted-foreground">

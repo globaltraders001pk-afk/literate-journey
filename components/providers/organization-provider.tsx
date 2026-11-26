@@ -57,7 +57,7 @@ export function OrganizationProvider({
   // Broadcast & update logo in-memory immediately
   const updateLogo = useCallback((newLogoUrl: string | null) => {
     setOrganization((prev) => {
-      const updated = prev ? { ...prev, logo_url: newLogoUrl } : ({ id: 'org', name: 'Qurbat ERP', logo_url: newLogoUrl } as OrganizationData)
+      const updated = prev ? { ...prev, logo_url: newLogoUrl } : ({ id: 'org', name: 'Global Traders', logo_url: newLogoUrl } as OrganizationData)
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('qurbat-organization-updated', { detail: updated })

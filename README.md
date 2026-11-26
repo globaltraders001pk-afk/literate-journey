@@ -1,4 +1,4 @@
-# Qurbat ERP — Global Traders
+# Global Traders
 
 POS + ERP for a cheese / dairy business, built for **Global Traders** (medical / pharma
 client) on top of the `pos-system-aiagent` codebase. Next.js + Supabase, one app for

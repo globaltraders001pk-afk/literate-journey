@@ -25,6 +25,10 @@ export function DeleteProductButton({ productId, productName }: { productId: str
     setOpen(false)
     if (result?.error) {
       alert(`Error: ${result.error}`)
+    } else if (result?.message) {
+      // Soft delete: the product stays in history as Inactive and
+      // leaves the default (active-only) list — say so plainly.
+      alert(result.message)
     }
   }
 
