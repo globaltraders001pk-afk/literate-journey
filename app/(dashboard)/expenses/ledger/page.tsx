@@ -38,12 +38,13 @@ export default async function ExpensesLedgerPage() {
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Logged By</TableHead>
+                <TableHead className="w-[60px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {expenses?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     No expenses logged yet.
                   </TableCell>
                 </TableRow>
@@ -60,6 +61,19 @@ export default async function ExpensesLedgerPage() {
                       : <Badge variant="secondary" className="capitalize">{exp.status}</Badge>}
                   </TableCell>
                   <TableCell>{exp.profiles?.full_name}</TableCell>
+                  <TableCell>
+                    <ExpenseForm
+                      categories={categories || []}
+                      expense={{
+                        id: exp.id,
+                        category_id: exp.category_id,
+                        amount: exp.amount,
+                        expense_date: exp.expense_date,
+                        reference_number: exp.reference_number ?? null,
+                        notes: exp.notes ?? null,
+                      }}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

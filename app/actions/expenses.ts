@@ -55,6 +55,31 @@ export async function createExpenseCategory(formData: FormData) {
   return { success: true }
 }
 
+export async function updateExpenseCategory(id: string, formData: FormData) {
+  try { await checkAccess(['admin', 'owner']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
+
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+
+  const name = (formData.get('name') as string)?.trim()
+  const description = (formData.get('description') as string)?.trim() || null
+  if (!name) return { error: 'Name is required' }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('expense_categories')
+    .update({ name, description })
+    .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .select('id')
+
+  if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'Category not found in your organization.' }
+
+  revalidatePath('/expenses/categories')
+  return { success: true }
+}
+
 export async function deleteExpenseCategory(id: string) {
   try { await checkAccess(['admin', 'owner']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
 
@@ -164,5 +189,58 @@ export async function createExpense(formData: FormData) {
   if (error) return { error: error.message }
   
   revalidatePath('/expenses/ledger')
+  return { success: true }
+}
+
+export async function updateExpense(id: string, formData: FormData) {
+  try { await checkAccess(['admin', 'owner']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
+
+  // Same validation as create: zod rejects negatives, NaN and non-numbers.
+  const parsed = expenseSchema.safeParse({
+    category_id: formData.get('category_id'),
+    amount: Number(formData.get('amount')),
+    expense_date: formData.get('expense_date'),
+    reference_number: emptyToUndefined(formData.get('reference_number')),
+    notes: emptyToUndefined(formData.get('notes')),
+  })
+  if (!parsed.success) return { error: firstZodError(parsed) }
+  const { category_id, amount, expense_date, reference_number, notes } = parsed.data
+
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+
+  const supabase = await createClient()
+
+  // Ownership first: the expense must belong to the caller's org.
+  const { data: existing } = await supabase
+    .from('expenses')
+    .select('id')
+    .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .single()
+  if (!existing) return { error: 'Expense not found in your organization.' }
+
+  // The new category must also belong to the caller's org, so an
+  // expense can never be moved into another organization's category.
+  const { data: category } = await supabase
+    .from('expense_categories')
+    .select('id')
+    .eq('id', category_id)
+    .eq('organization_id', profile.organization_id)
+    .single()
+  if (!category) return { error: 'Category not found in your organization.' }
+
+  const { error } = await supabase
+    .from('expenses')
+    .update({ category_id, amount, expense_date, reference_number, notes })
+    .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+
+  if (error) return { error: error.message }
+
+  // The ledger shows the edit; the cashflow breakdown aggregates by
+  // category, so it changes too.
+  revalidatePath('/expenses/ledger')
+  revalidatePath('/expenses/cashflow')
   return { success: true }
 }
