@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { ExpenseForm } from './expense-form'
+import { DeleteExpenseButton } from './delete-expense-button'
 import { formatPKR } from '@/lib/format-currency'
 import { truncationNote } from '@/lib/pagination'
 
@@ -38,7 +39,7 @@ export default async function ExpensesLedgerPage() {
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Logged By</TableHead>
-                <TableHead className="w-[60px]">Actions</TableHead>
+                <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -62,17 +63,23 @@ export default async function ExpensesLedgerPage() {
                   </TableCell>
                   <TableCell>{exp.profiles?.full_name}</TableCell>
                   <TableCell>
-                    <ExpenseForm
-                      categories={categories || []}
-                      expense={{
-                        id: exp.id,
-                        category_id: exp.category_id,
-                        amount: exp.amount,
-                        expense_date: exp.expense_date,
-                        reference_number: exp.reference_number ?? null,
-                        notes: exp.notes ?? null,
-                      }}
-                    />
+                    <div className="flex items-center gap-1">
+                      <ExpenseForm
+                        categories={categories || []}
+                        expense={{
+                          id: exp.id,
+                          category_id: exp.category_id,
+                          amount: exp.amount,
+                          expense_date: exp.expense_date,
+                          reference_number: exp.reference_number ?? null,
+                          notes: exp.notes ?? null,
+                        }}
+                      />
+                      <DeleteExpenseButton
+                        expenseId={exp.id}
+                        expenseLabel={`${formatPKR(exp.amount)} (${new Date(exp.expense_date).toLocaleDateString()})`}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

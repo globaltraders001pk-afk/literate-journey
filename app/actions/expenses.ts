@@ -244,3 +244,28 @@ export async function updateExpense(id: string, formData: FormData) {
   revalidatePath('/expenses/cashflow')
   return { success: true }
 }
+
+export async function deleteExpense(id: string) {
+  try { await checkAccess(['admin', 'owner']) } catch (err) { if (isRedirectError(err)) throw err; return { error: 'Unauthorized' } }
+
+  const profile = await getUserProfile()
+  if (!profile) return { error: 'Unauthorized' }
+
+  const supabase = await createClient()
+
+  // Org-scoped like every other expense mutation: only a row in the
+  // caller's organization can be deleted.
+  const { data, error } = await supabase
+    .from('expenses')
+    .delete()
+    .eq('id', id)
+    .eq('organization_id', profile.organization_id)
+    .select('id')
+
+  if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'Expense not found in your organization.' }
+
+  revalidatePath('/expenses/ledger')
+  revalidatePath('/expenses/cashflow')
+  return { success: true }
+}
