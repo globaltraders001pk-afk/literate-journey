@@ -44,7 +44,10 @@ export default async function ExpenseCategoriesPage() {
                   <TableCell className="font-medium">{cat.name}</TableCell>
                   <TableCell>{cat.description || '-'}</TableCell>
                   <TableCell>
-                    <DeleteExpenseCategoryButton categoryId={cat.id} categoryName={cat.name} />
+                    <div className="flex items-center gap-1">
+                      <CategoryForm category={{ id: cat.id, name: cat.name, description: cat.description ?? null }} />
+                      <DeleteExpenseCategoryButton categoryId={cat.id} categoryName={cat.name} />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
